@@ -106,7 +106,7 @@ int PG_lcd_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
         uint8_t pin = pin_array[i];
         pinMode(pin, OUTPUT);
     }
-    
+
     PG_lcd_pin_all_low(lcd);
     PG_lcd_reset(lcd);
     
@@ -161,7 +161,7 @@ void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page)
     PG_lcd_select_chip(lcd, chip);
 
     // 1 0 1 1 1 ? ? ?
-    uint8_t data = (1 << 7) | (1 << 5) | (1 << 4) || (1 << 3) | page;
+    uint8_t data = (1 << 7) | (1 << 5) | (1 << 4) | (1 << 3) | page;
     PG_lcd_write_data_bit(lcd, data);
     PG_lcd_pulse(lcd);
 
