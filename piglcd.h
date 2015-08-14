@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-#define RPI 0
-//#define RPI 1
 
 typedef enum {
     PG_PINMAP_NORMAL,

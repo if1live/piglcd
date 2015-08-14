@@ -4,13 +4,14 @@
 #include <string.h>
 
 #include <time.h>
-#if RPI
+
+#ifdef __arm__
 #include <wiringPi.h>
 #endif
 
 #define PIN_COUNT 14
 
-#if RPI != 1
+#ifndef __arm__
 #define OUTPUT 1
 void digitalWrite(int pin, int val) 
 {
