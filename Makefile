@@ -1,11 +1,12 @@
 CC	= clang
-CFLAGS	= -Iexternal/glfw/include
-LDFLAGS	= -lwiringPi
-#-lglfw3 -Lexternal/glfw/src	\
-#	-framework OpenGL	\
-#	-framework Cocoa	\
-#	-framework CoreVideo	\
-#	-framework IOKit
+CFLAGS	= -Iexternal/glfw/include -W -Wall -Wunused
+#LDFLAGS	= -lwiringPi
+LDFLAGS	= \
+	-lglfw3 -Lexternal/glfw/src	\
+	-framework OpenGL	\
+	-framework Cocoa	\
+	-framework CoreVideo	\
+	-framework IOKit
 
 OBJS	= piglcd.o main.o
 TARGET	= a.out
@@ -24,4 +25,5 @@ clean:
 	rm -rf $(TARGET)
 
 run: all
-	sudo -E bash -c "time sudo ./$(TARGET)"
+	#sudo -E bash -c "time sudo ./$(TARGET)"
+	./$(TARGET)

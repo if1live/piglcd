@@ -33,3 +33,10 @@
 
 a.out
 .venv
+
+# OSX
+.DS_Store
+
+# third-party library
+*.zip
+external
