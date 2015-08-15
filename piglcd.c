@@ -475,6 +475,7 @@ void PG_lcd_fill_data_pin(struct PG_lcd_t *lcd, uint8_t pin_table[DATA_PIN_COUNT
 void PG_lcd_reset(struct PG_lcd_t *lcd)
 {
     PG_lcd_pin_off(lcd, lcd->pin_rst);
+    PG_lcd_nanosleep(1);
     PG_lcd_pin_on(lcd, lcd->pin_rst);
 }
 

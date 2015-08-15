@@ -27,6 +27,7 @@ int main()
     lcd.pin_led = 12;
 
     lcd.setup(&lcd, PG_PINMAP_PHYS);
+    PG_lcd_commit_buffer(&lcd);
     
     struct PG_framebuffer_t buffer;
     /*
