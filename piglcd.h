@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#define PG_DEFAULT_ROWS 64
+#define PG_DEFAULT_COLUMNS 128
+#define PG_DEFAULT_PAGES (PG_DEFAULT_ROWS / 8)
+#define PG_DEFAULT_CHIPS 2
 
 typedef enum {
     PG_PINMAP_NORMAL,

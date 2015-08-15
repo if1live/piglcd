@@ -27,7 +27,7 @@ int main()
     lcd.pin_led = 12;
 
     lcd.setup(&lcd, PG_PINMAP_PHYS);
-
+    
     for(int i = 0 ; i < 50 ; ++i) {
         PG_lcd_write_test_pattern(&lcd);
         PG_lcd_clear_screen(&lcd);

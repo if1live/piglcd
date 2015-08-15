@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
+#include <unistd.h>
 
 // for glfw backend
 #include <GLFW/glfw3.h>
@@ -28,6 +29,23 @@ static void pinMode(int pin, int mode) { UNUSED(pin); UNUSED(mode); }
 #endif
 
 #define PIN_COUNT 14
+
+// 1 0 1 1 1 ? ? ?
+#define MASK_SET_PAGE 0b10111000
+#define DATA_BITS_SET_PAGE 3
+
+// 0 0 1 1 1 1 1 ?
+#define MASK_SET_DISPLAY_ENABLE 0b00111110
+#define DATA_BITS_SET_DISPLAY_ENABLE 1
+
+// 1 1 ? ?  ? ? ? ?
+#define MASK_SET_START_LINE 0b11000000
+#define DATA_BITS_SET_START_LINE 6
+
+// 0 1 ? ?  ? ? ? ?
+#define MASK_SET_COLUMN 0b01000000
+#define DATA_BITS_SET_COLUMN 6
+
 
 static void PG_lcd_nanosleep(int nsec);
 static void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table);
@@ -109,6 +127,7 @@ int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
         pinMode(pin, OUTPUT);
     }
 
+    // common setup
     PG_lcd_pin_all_low(lcd);
     PG_lcd_reset(lcd);
 
@@ -148,21 +167,180 @@ int PG_lcd_dummy_frame_end_callback(struct PG_lcd_t *lcd)
 
 
 // glfw backend
-static GLFWwindow *g_window = NULL;
+static GLFWwindow *glfw_window = NULL;
+
+// LCD size
+static int glfw_lcd_pixel_size = 6;
+static int glfw_lcd_base_x = 0;
+static int glfw_lcd_base_y = 0;
+static int glfw_lcd_padding = 2;
+
+static int glfw_val_rs = 0;
+static int glfw_val_e = 0;
+static int glfw_val_d0 = 0;
+static int glfw_val_d1 = 0;
+static int glfw_val_d2 = 0;
+static int glfw_val_d3 = 0;
+static int glfw_val_d4 = 0;
+static int glfw_val_d5 = 0;
+static int glfw_val_d6 = 0;
+static int glfw_val_d7 = 0;
+static int glfw_val_cs1 = 0;
+static int glfw_val_cs2 = 0;
+static int glfw_val_rst = 0;
+static int glfw_val_led = 0;
+
+static int glfw_state_display_enable = 0;
+static int glfw_state_page = 0;
+static int glfw_state_column = 0;
+static int glfw_state_chip = 0;
+static int glfw_state_start_line = 0;
+
+static int glfw_state_grid[PG_DEFAULT_CHIPS][PG_DEFAULT_PAGES][PG_DEFAULT_COLUMNS/2] = {0};
+
 void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
 {
-    UNUSED(lcd);
-    UNUSED(pin);
-    UNUSED(val);
+    struct pin_tuple_t {
+        uint8_t pin;
+        int* addr;
+    };
+    struct pin_tuple_t pin_tuple_list[] = {
+        { lcd->pin_rs, &glfw_val_rs },
+        { lcd->pin_e, &glfw_val_e },
+        { lcd->pin_d0, &glfw_val_d0 },
+        { lcd->pin_d1, &glfw_val_d1 },
+        { lcd->pin_d2, &glfw_val_d2 },
+        { lcd->pin_d3, &glfw_val_d3 },
+        { lcd->pin_d4, &glfw_val_d4 },
+        { lcd->pin_d5, &glfw_val_d5 },
+        { lcd->pin_d6, &glfw_val_d6 },
+        { lcd->pin_d7, &glfw_val_d7 },
+        { lcd->pin_cs1, &glfw_val_cs1 },
+        { lcd->pin_cs2, &glfw_val_cs2 },
+        { lcd->pin_rst, &glfw_val_rst },
+        { lcd->pin_led, &glfw_val_led },
+    };
+    int count = sizeof(pin_tuple_list) / sizeof(pin_tuple_list[0]);
+    for(int i = 0 ; i < count ; ++i) {
+        if(pin_tuple_list[i].pin == pin) {
+            *pin_tuple_list[i].addr = val;
+            break;
+        }
+    }
 }
+
 void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
+    
+    /*
+    printf("RS  = %d\n", glfw_val_rs);
+    printf("E   = %d\n", glfw_val_e);
+    printf("D0  = %d\n", glfw_val_d0);
+    printf("D1  = %d\n", glfw_val_d1);
+    printf("D2  = %d\n", glfw_val_d2);
+    printf("D3  = %d\n", glfw_val_d3);
+    printf("D4  = %d\n", glfw_val_d4);
+    printf("D5  = %d\n", glfw_val_d5);
+    printf("D6  = %d\n", glfw_val_d6);
+    printf("D7  = %d\n", glfw_val_d7);
+    printf("CS1 = %d\n", glfw_val_cs1);
+    printf("CS2 = %d\n", glfw_val_cs2);
+    printf("RST = %d\n", glfw_val_rst);
+    printf("LED = %d\n", glfw_val_led);
+    */
+    
+    uint8_t data_bits = 0;
+    uint8_t data_bit_val_list[] = {
+        glfw_val_d0,
+        glfw_val_d1,
+        glfw_val_d2,
+        glfw_val_d3,
+        glfw_val_d4,
+        glfw_val_d5,
+        glfw_val_d6,
+        glfw_val_d7
+    };
+    int data_bit_count = sizeof(data_bit_val_list) / sizeof(data_bit_val_list[0]);
+    for(int i = 0 ; i < data_bit_count ; ++i) {
+        data_bits |= (data_bit_val_list[i] << i);
+    }
+    
+    if(glfw_val_cs1 == 1) {
+        glfw_state_chip = 0;
+    }
+    if(glfw_val_cs2 == 1) {
+        glfw_state_chip = 1;
+    }
+    //printf("curr chip : %d\n", glfw_state_chip);
+    
+    if(glfw_val_rs == 0) {
+        int shift = 0;
+        // display on/off
+        shift = DATA_BITS_SET_DISPLAY_ENABLE;
+        if((data_bits >> shift) == (MASK_SET_DISPLAY_ENABLE >> shift)) {
+            glfw_state_display_enable = ((1 << shift) - 1) & data_bits;
+            //printf("display on/off : %d\n", glfw_state_display_enable);
+        }
+        
+        // set column
+        shift = DATA_BITS_SET_COLUMN;
+        if((data_bits >> shift) == (MASK_SET_COLUMN >> shift)) {
+            glfw_state_column = ((1 << shift) - 1) & data_bits;
+            //printf("set column : %d\n", glfw_state_column);
+        }
+        
+        // set page
+        shift = DATA_BITS_SET_PAGE;
+        if((data_bits >> shift) == (MASK_SET_PAGE >> shift)) {
+            glfw_state_page = ((1 << shift) - 1) & data_bits;
+            //printf("set page : %d\n", glfw_state_page);
+        }
+        
+        // set display start line
+        shift = DATA_BITS_SET_START_LINE;
+        if((data_bits >> shift) == (MASK_SET_START_LINE >> shift)) {
+            glfw_state_start_line = ((1 << shift) - 1) & data_bits;
+            //printf("set start line : %d\n", glfw_state_start_line);
+        }
+        
+    } else {
+        // write display data
+        //printf("write data\n");
+        glfw_state_grid[glfw_state_chip][glfw_state_page][glfw_state_column] = data_bits;
+        
+        int chip_columns = (lcd->columns / lcd->chips);
+        glfw_state_column = (glfw_state_column + 1) % chip_columns;
+    }
 }
+
+int PG_lcd_glfw_window_width(struct PG_lcd_t *lcd)
+{
+    int width = 0;
+    width += glfw_lcd_pixel_size * lcd->columns;
+    width += glfw_lcd_base_x * 2;
+    width += glfw_lcd_padding * (lcd->columns - 1);
+    return width;
+}
+
+int PG_lcd_glfw_window_height(struct PG_lcd_t *lcd)
+{
+    int height = 0;
+    height += glfw_lcd_pixel_size * lcd->rows;
+    height += glfw_lcd_base_y * 2;
+    height += glfw_lcd_padding * (lcd->rows - 1);
+    return height;
+}
+
 int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
-    UNUSED(lcd);
     UNUSED(pinmap_type);
+    
+    PG_lcd_pin_all_low(lcd);
+    PG_lcd_reset(lcd);
+
+    PG_lcd_set_display_enable(lcd, 1);
+    PG_lcd_set_start_line(lcd, 0);
 
     // create glfw window
     if(!glfwInit()) {
@@ -170,12 +348,15 @@ int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
         exit(EXIT_FAILURE);
     }
 
-    g_window = glfwCreateWindow(640, 480, "GLFW Backend", NULL, NULL);
-    if(!g_window) {
+    int width = PG_lcd_glfw_window_width(lcd);
+    int height = PG_lcd_glfw_window_height(lcd);
+    
+    glfw_window = glfwCreateWindow(width, height, "GLFW Backend", NULL, NULL);
+    if(!glfw_window) {
         glfwTerminate();
     }
 
-    glfwMakeContextCurrent(g_window);
+    glfwMakeContextCurrent(glfw_window);
     glfwSwapInterval(1);
 
     return 0;
@@ -184,34 +365,64 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
 
-    float ratio;
-    int width, height;
-
-    glfwGetFramebufferSize(g_window, &width, &height);
-    ratio = width / (float) height;
+    int width = PG_lcd_glfw_window_width(lcd);
+    int height = PG_lcd_glfw_window_height(lcd);
 
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT);
+    
+    if(!glfw_state_display_enable) {
+        return 0;
+    }
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+    // gl 좌표계 뒤집기. 격자 그릴때는 y가 반대인게 편하다
+    glOrtho(0, width, height, 0, 1.f, -1.f);
+    
     glMatrixMode(GL_MODELVIEW);
-
     glLoadIdentity();
-    glRotatef((float) glfwGetTime() * 50.f, 0.f, 0.f, 1.f);
 
+    glColor3f(1.f, 1.f, 1.f);
+    
     glBegin(GL_TRIANGLES);
-    glColor3f(1.f, 0.f, 0.f);
-    glVertex3f(-0.6f, -0.4f, 0.f);
-    glColor3f(0.f, 1.f, 0.f);
-    glVertex3f(0.6f, -0.4f, 0.f);
-    glColor3f(0.f, 0.f, 1.f);
-    glVertex3f(0.f, 0.6f, 0.f);
+    
+    int chip_columns = (lcd->columns / lcd->chips);
+    for(int chip = 0 ; chip < lcd->chips ; ++chip) {
+        for(int page = 0 ; page < lcd->pages ; ++page) {
+            for(int column = 0 ; column < chip_columns ; ++column) {
+                uint8_t data = glfw_state_grid[chip][page][column];
+                for(int i = 0 ; i < 8 ; ++i) {
+                    uint8_t mask = (1 << i);
+                    int val = data & mask;
+                    if(!val) {
+                        continue;
+                    }
+                    int x = chip * chip_columns + column;
+                    int y = page * 8 + i;
+                    
+                    int l = glfw_lcd_base_x + x * (glfw_lcd_pixel_size + glfw_lcd_padding);
+                    int t = glfw_lcd_base_y + y * (glfw_lcd_pixel_size + glfw_lcd_padding);
+                    int r = l + glfw_lcd_pixel_size;
+                    int b = t + glfw_lcd_pixel_size;
+                    
+                    glVertex3f(l, b, 0);
+                    glVertex3f(r, b, 0);
+                    glVertex3f(r, t, 0);
+                    
+                    glVertex3f(l, b, 0);
+                    glVertex3f(r, t, 0);
+                    glVertex3f(l, t, 0);
+                }
+            }
+        }
+    }
+    
     glEnd();
 
-    glfwSwapBuffers(g_window);
+    glfwSwapBuffers(glfw_window);
     glfwPollEvents();
+    usleep(10 * 1000);
     return 0;
 }
 
@@ -254,10 +465,10 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
     memset(lcd, 0, sizeof(*lcd));
     lcd->backend = backend_type;
     // set default value
-    lcd->rows = 64;
-    lcd->columns = 128;
-    lcd->pages = lcd->rows / 8;
-    lcd->chips = 2;
+    lcd->rows = PG_DEFAULT_ROWS;
+    lcd->columns = PG_DEFAULT_COLUMNS;
+    lcd->pages = PG_DEFAULT_PAGES;
+    lcd->chips = PG_DEFAULT_CHIPS;
 
     // for backend
     switch(backend_type) {
@@ -293,8 +504,8 @@ void PG_lcd_destroy(struct PG_lcd_t *lcd)
         free(lcd->buffer);
         lcd->buffer = NULL;
     }
-    if(g_window != NULL) {
-        glfwDestroyWindow(g_window);
+    if(glfw_window != NULL) {
+        glfwDestroyWindow(glfw_window);
         glfwTerminate();
     }
 }
@@ -324,8 +535,7 @@ void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page)
     page = page & (lcd->pages - 1);
     PG_lcd_select_chip(lcd, chip);
 
-    // 1 0 1 1 1 ? ? ?
-    uint8_t data = (1 << 7) | (1 << 5) | (1 << 4) | (1 << 3) | page;
+    uint8_t data = MASK_SET_PAGE | page;
     PG_lcd_write_data_bit(lcd, data);
     lcd->pulse(lcd);
 
@@ -335,13 +545,12 @@ void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page)
 
 void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val)
 {
-    val = val & 0x01;
-
+    val = val & 0b1;
     PG_lcd_pin_on(lcd, lcd->pin_cs1);
     PG_lcd_pin_on(lcd, lcd->pin_cs2);
 
     // 0 0 1 1 1 1 1 ?
-    uint8_t data = (1 << 5) | (1 << 4) | (1 << 3) | (1 << 2) | (1 << 1);
+    uint8_t data = MASK_SET_DISPLAY_ENABLE;
     if(val) {
         data |= 1;
     }
@@ -354,13 +563,13 @@ void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val)
 
 void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx)
 {
-    idx = idx & 0x3F;
+    idx = idx & 0b111111;
 
     PG_lcd_pin_on(lcd, lcd->pin_cs1);
     PG_lcd_pin_on(lcd, lcd->pin_cs2);
 
     // 1 1 ? ?  ? ? ? ?
-    uint8_t data = (1 << 7) | (1 << 6) | idx;
+    uint8_t data = MASK_SET_START_LINE | idx;
     PG_lcd_write_data_bit(lcd, data);
     lcd->pulse(lcd);
 
@@ -369,12 +578,12 @@ void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx)
 
 void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column)
 {
-    column = column & 0x3F;
+    column = column & 0b111111;
 
     PG_lcd_select_chip(lcd, chip);
 
     // 0 1 ? ? ? ? ? ?
-    uint8_t data = (1 << 6) | column;
+    uint8_t data = MASK_SET_COLUMN | column;
     PG_lcd_write_data_bit(lcd, data);
     lcd->pulse(lcd);
 
@@ -383,7 +592,7 @@ void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column)
 
 void PG_lcd_select_chip(struct PG_lcd_t *lcd, int chip)
 {
-    chip = chip & 0x01;
+    chip = chip & 0b1;
 
     if(chip == 0) {
         PG_lcd_pin_on(lcd, lcd->pin_cs1);
@@ -449,15 +658,15 @@ void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
         for(int chip = 0 ; chip < lcd->chips ; ++chip) {
             PG_lcd_set_page(lcd, chip, page);
             PG_lcd_set_column(lcd, chip, 0);
-            for(int column = 0 ; column < 64 ; ++column) {
+            for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
                 PG_lcd_pin_on(lcd, lcd->pin_rs);
                 PG_lcd_select_chip(lcd, chip);
 
                 if(column % 2 == 0) {
-                    char data = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6);
+                    char data = 0b01010101;
                     PG_lcd_write_data_bit(lcd, data);
                 } else {
-                    char data = (1 << 1) | (1 << 3) | (1 << 5) | (1 << 7);
+                    char data = 0b10101010;
                     PG_lcd_write_data_bit(lcd, data);
                 }
                 lcd->pulse(lcd);
