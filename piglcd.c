@@ -303,7 +303,7 @@ void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
     } else {
         // write display data
         //printf("write data\n");
-        lcd->glfw_state_grid[lcd->glfw_state_chip][lcd->glfw_state_page][lcd->glfw_state_column] = data_bits;
+        lcd->glfw_framebuffer.data[lcd->glfw_state_chip][lcd->glfw_state_page][lcd->glfw_state_column] = data_bits;
         
         int chip_columns = (lcd->columns / lcd->chips);
         lcd->glfw_state_column = (lcd->glfw_state_column + 1) % chip_columns;
@@ -387,7 +387,7 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
     for(int chip = 0 ; chip < lcd->chips ; ++chip) {
         for(int page = 0 ; page < lcd->pages ; ++page) {
             for(int column = 0 ; column < chip_columns ; ++column) {
-                uint8_t data = lcd->glfw_state_grid[chip][page][column];
+                uint8_t data = lcd->glfw_framebuffer.data[chip][page][column];
                 for(int i = 0 ; i < 8 ; ++i) {
                     uint8_t mask = (1 << i);
                     int val = data & mask;
@@ -483,10 +483,10 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
     memset(lcd, 0, sizeof(*lcd));
     lcd->backend = backend_type;
     // set default value
-    lcd->rows = PG_DEFAULT_ROWS;
-    lcd->columns = PG_DEFAULT_COLUMNS;
-    lcd->pages = PG_DEFAULT_PAGES;
-    lcd->chips = PG_DEFAULT_CHIPS;
+    lcd->rows = PG_ROWS;
+    lcd->columns = PG_COLUMNS;
+    lcd->pages = PG_PAGES;
+    lcd->chips = PG_CHIPS;
 
     // for backend
     switch(backend_type) {
@@ -515,16 +515,10 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
             assert(!"invalid backend type");
             break;
     }
-
-    lcd->buffer = (uint8_t*)malloc(sizeof(uint8_t) * lcd->columns * lcd->pages);
 }
 
 void PG_lcd_destroy(struct PG_lcd_t *lcd)
 {
-    if(lcd->buffer) {
-        free(lcd->buffer);
-        lcd->buffer = NULL;
-    }
     if(lcd->glfw_window != NULL) {
         glfwDestroyWindow(lcd->glfw_window);
         glfwTerminate();
@@ -683,30 +677,26 @@ void PG_lcd_render_end(struct PG_lcd_t *lcd)
     }
 }
 
-void PG_lcd_clear_screen(struct PG_lcd_t *lcd)
+void PG_lcd_clear_buffer(struct PG_lcd_t *lcd)
 {
-    PG_lcd_render_begin(lcd);
-    for(int page = 0 ; page < lcd->pages ; ++page) {
-        for(int chip = 0 ; chip < lcd->chips ; ++chip) {
-            PG_lcd_set_page(lcd, chip, page);
-            PG_lcd_set_column(lcd, chip, 0);
-            for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
-                PG_lcd_pin_on(lcd, lcd->pin_rs);
-                PG_lcd_select_chip(lcd, chip);
+    memset(&lcd->buffer, 0, sizeof(lcd->buffer));
+}
 
-                PG_lcd_write_data_bit(lcd, 0);
-                lcd->pulse(lcd);
-
-                PG_lcd_unselect_chip(lcd);
-                PG_lcd_pin_off(lcd, lcd->pin_rs);
+void PG_lcd_write_buffer_sample_pattern(struct PG_lcd_t *lcd)
+{
+    memset(&lcd->buffer, 0, sizeof(lcd->buffer));
+    int chip_columns = (lcd->columns / lcd->chips);
+    for(int chip = 0 ; chip < lcd->chips ; ++chip) {
+        for(int page = 0 ; page < lcd->pages ; ++page) {
+            for(int column = 0 ; column < chip_columns ; ++column) {
+                uint8_t data = (column % 2) ? 0b10101010 : 0b01010101;
+                lcd->buffer.data[chip][page][column] = data;
             }
         }
     }
-    lcd->frame_end_callback(lcd);
-    PG_lcd_render_end(lcd);
 }
 
-void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
+void PG_lcd_commit_buffer(struct PG_lcd_t *lcd)
 {
     PG_lcd_render_begin(lcd);
     for(int page = 0 ; page < lcd->pages ; ++page) {
@@ -716,14 +706,9 @@ void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
             for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
                 PG_lcd_pin_on(lcd, lcd->pin_rs);
                 PG_lcd_select_chip(lcd, chip);
-
-                if(column % 2 == 0) {
-                    char data = 0b01010101;
-                    PG_lcd_write_data_bit(lcd, data);
-                } else {
-                    char data = 0b10101010;
-                    PG_lcd_write_data_bit(lcd, data);
-                }
+                
+                uint8_t data = lcd->buffer.data[chip][page][column];
+                PG_lcd_write_data_bit(lcd, data);
                 lcd->pulse(lcd);
 
                 PG_lcd_unselect_chip(lcd);

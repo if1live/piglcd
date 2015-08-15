@@ -6,10 +6,10 @@
 // for timespec
 #include <time.h>
 
-#define PG_DEFAULT_ROWS 64
-#define PG_DEFAULT_COLUMNS 128
-#define PG_DEFAULT_PAGES (PG_DEFAULT_ROWS / 8)
-#define PG_DEFAULT_CHIPS 2
+#define PG_ROWS 64
+#define PG_COLUMNS 128
+#define PG_PAGES (PG_ROWS / 8)
+#define PG_CHIPS 2
 
 typedef enum {
     PG_PINMAP_NORMAL,
@@ -25,6 +25,10 @@ typedef enum {
     PG_BACKEND_DUMMY,
     PG_BACKEND_MAX_COUNT,
 } PG_backend_t;
+
+struct PG_core_framebuffer_t {
+    uint8_t data[PG_CHIPS][PG_PAGES][PG_COLUMNS/PG_CHIPS];
+};
 
 struct PG_lcd_t {
     PG_backend_t backend;
@@ -51,7 +55,7 @@ struct PG_lcd_t {
     uint8_t pin_led;
     
     // data
-    uint8_t *buffer;
+    struct PG_core_framebuffer_t buffer;
     
     // backend function
     void (*pin_set_val)(struct PG_lcd_t *lcd, uint8_t pin, int val);
@@ -77,7 +81,7 @@ struct PG_lcd_t {
     uint8_t glfw_state_chip;
     uint8_t glfw_state_start_line;
     
-    uint8_t glfw_state_grid[PG_DEFAULT_CHIPS][PG_DEFAULT_PAGES][PG_DEFAULT_COLUMNS/2];
+    struct PG_core_framebuffer_t glfw_framebuffer;
     
     // common
     struct timespec render_begin_tspec;
@@ -86,8 +90,9 @@ struct PG_lcd_t {
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type);
 void PG_lcd_destroy(struct PG_lcd_t *lcd);
 
-void PG_lcd_clear_screen(struct PG_lcd_t *lcd);
-void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd);
+void PG_lcd_clear_buffer(struct PG_lcd_t *lcd);
+void PG_lcd_write_buffer_sample_pattern(struct PG_lcd_t *lcd);
+void PG_lcd_commit_buffer(struct PG_lcd_t *lcd);
 
 // helper
 #define UNUSED(x) (void)(x)
