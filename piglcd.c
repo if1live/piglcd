@@ -659,6 +659,23 @@ void PG_lcd_render_begin(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
     clock_gettime(CLOCK_MONOTONIC, &lcd->render_begin_tspec);
+
+    // 간단한 fps 측정기
+    // 100 프레임 채울때마다 평균 fps 계산
+    const int sampling_count = 100;
+    if(lcd->fps_sampling_idx == 0) {
+        clock_gettime(CLOCK_MONOTONIC, &lcd->fps_begin_tspec);
+    } else if(lcd->fps_sampling_idx == sampling_count - 1) {
+        struct timespec fps_end_tspec;
+        clock_gettime(CLOCK_MONOTONIC, &fps_end_tspec);
+
+        struct timespec diff = timespec_subtract(&fps_end_tspec, &lcd->fps_begin_tspec);
+        float sec = ((diff.tv_sec) + (diff.tv_nsec / 1000000000.0)) / sampling_count;
+        float fps = 1.0 / sec;
+        printf("Avg FPS = %f, Avg delta = %f sec\n", fps, sec);
+        fflush(stdout);
+    }
+    lcd->fps_sampling_idx = (lcd->fps_sampling_idx + 1) % sampling_count;
 }
 void PG_lcd_render_end(struct PG_lcd_t *lcd)
 {
