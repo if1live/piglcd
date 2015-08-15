@@ -5,16 +5,26 @@
 #include <assert.h>
 #include <time.h>
 
+// for glfw backend
+#include <GLFW/glfw3.h>
+
+// for gpip backend
 #ifdef __arm__
 #include <wiringPi.h>
 #else
 const int OUTPUT = 0;
-int wiringPiSetup() { return 0; }
-int wiringPiSetupGpio() { return 0; }
-int wiringPiSetupPhys() { return 0; }
-int wiringPiSetupSys() { return 0; }
-void digitalWrite(int pin, int val) { UNUSED(pin); UNUSED(val); }
-void pinMode(int pin, int mode) { UNUSED(pin); UNUSED(mode); }
+static int wiringPiSetupMock() 
+{
+    fprintf(stderr, "WiringPi not exist, use Mock.\n"); 
+    return 0;
+}
+static int wiringPiSetup() { return wiringPiSetupMock(); }
+static int wiringPiSetupGpio() { return wiringPiSetupMock(); }
+static int wiringPiSetupPhys() { return wiringPiSetupMock(); }
+static int wiringPiSetupSys() { return wiringPiSetupMock(); }
+
+static void digitalWrite(int pin, int val) { UNUSED(pin); UNUSED(val); }
+static void pinMode(int pin, int mode) { UNUSED(pin); UNUSED(mode); }
 #endif
 
 #define PIN_COUNT 14
@@ -26,18 +36,19 @@ static void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table);
 static void PG_lcd_gpio_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_gpio_pulse(struct PG_lcd_t *lcd);
 static int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
+static int PG_lcd_gpio_frame_end_callback(struct PG_lcd_t *lcd);
 
 // dummy backend
 static void PG_lcd_dummy_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_dummy_pulse(struct PG_lcd_t *lcd);
 static int PG_lcd_dummy_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
+static int PG_lcd_dummy_frame_end_callback(struct PG_lcd_t *lcd);
 
 // glfw backend
-#ifndef __arm__
 static void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd);
 static int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
-#endif
+static int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd);
 
 // common function
 void PG_lcd_pin_on(struct PG_lcd_t *lcd, uint8_t pin);
@@ -106,7 +117,11 @@ int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
     
     return 0;
 }
-
+int PG_lcd_gpio_frame_end_callback(struct PG_lcd_t *lcd)
+{
+    UNUSED(lcd);
+    return 0;
+}
 
 // dummy backend
 void PG_lcd_dummy_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
@@ -125,9 +140,15 @@ int PG_lcd_dummy_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
     UNUSED(pinmap_type);
     return 0;
 }
+int PG_lcd_dummy_frame_end_callback(struct PG_lcd_t *lcd)
+{
+    UNUSED(lcd);
+    return 0;
+}
 
 
 // glfw backend
+static GLFWwindow *g_window = NULL;
 void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
 {
     UNUSED(lcd);
@@ -142,9 +163,56 @@ int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
     UNUSED(lcd);
     UNUSED(pinmap_type);
+    
+    // create glfw window
+    if(!glfwInit()) {
+        exit(EXIT_FAILURE);
+    }
+    
+    g_window = glfwCreateWindow(640, 480, "GLFW Backend", NULL, NULL);
+    if(!g_window) {
+        glfwTerminate();
+    }
+    
+    glfwMakeContextCurrent(g_window);
+    glfwSwapInterval(1);
+    
     return 0;
 }
+int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
+{
+    UNUSED(lcd);
+    
+    float ratio;
+    int width, height;
 
+    glfwGetFramebufferSize(g_window, &width, &height);
+    ratio = width / (float) height;
+
+    glViewport(0, 0, width, height);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+    glMatrixMode(GL_MODELVIEW);
+
+    glLoadIdentity();
+    glRotatef((float) glfwGetTime() * 50.f, 0.f, 0.f, 1.f);
+
+    glBegin(GL_TRIANGLES);
+    glColor3f(1.f, 0.f, 0.f);
+    glVertex3f(-0.6f, -0.4f, 0.f);
+    glColor3f(0.f, 1.f, 0.f);
+    glVertex3f(0.6f, -0.4f, 0.f);
+    glColor3f(0.f, 0.f, 1.f);
+    glVertex3f(0.f, 0.6f, 0.f);
+    glEnd();
+
+    glfwSwapBuffers(g_window);
+    glfwPollEvents();
+    return 0;
+}
 
 static void PG_lcd_nanosleep(int nsec)
 {
@@ -183,6 +251,7 @@ void PG_lcd_reset(struct PG_lcd_t *lcd)
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
 {
     memset(lcd, 0, sizeof(*lcd));
+    lcd->backend = backend_type;
     // set default value
     lcd->rows = 64;
     lcd->columns = 128;
@@ -195,16 +264,19 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
             lcd->pin_set_val = PG_lcd_gpio_pin_set_val;
             lcd->pulse = PG_lcd_gpio_pulse;
             lcd->setup = PG_lcd_gpio_setup;
+            lcd->frame_end_callback = PG_lcd_gpio_frame_end_callback;
             break;
         case PG_BACKEND_GLFW:
             lcd->pin_set_val = PG_lcd_glfw_pin_set_val;
             lcd->pulse = PG_lcd_glfw_pulse;
             lcd->setup = PG_lcd_glfw_setup;
+            lcd->frame_end_callback = PG_lcd_glfw_frame_end_callback;
             break;
         case PG_BACKEND_DUMMY:
             lcd->pin_set_val = PG_lcd_dummy_pin_set_val;
             lcd->pulse = PG_lcd_dummy_pulse;
             lcd->setup = PG_lcd_dummy_setup;
+            lcd->frame_end_callback = PG_lcd_dummy_frame_end_callback;
             break;
         default:
             assert(!"invalid backend type");
@@ -218,7 +290,11 @@ void PG_lcd_destroy(struct PG_lcd_t *lcd)
 {
     if(lcd->buffer) {
         free(lcd->buffer);
-        lcd->buffer = 0;
+        lcd->buffer = NULL;
+    }
+    if(g_window != NULL) {
+        glfwDestroyWindow(g_window);
+        glfwTerminate();
     }
 }
 
@@ -363,6 +439,7 @@ void PG_lcd_clear_screen(struct PG_lcd_t *lcd)
             }
         }
     }
+    lcd->frame_end_callback(lcd);
 }
 
 void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
@@ -389,4 +466,5 @@ void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
             }
         }
     }
+    lcd->frame_end_callback(lcd);
 }

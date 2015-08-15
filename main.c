@@ -1,11 +1,13 @@
 #include "piglcd.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 int main()
 {
     struct PG_lcd_t lcd;
-    PG_lcd_initialize(&lcd, PG_BACKEND_GPIO);
+    //PG_lcd_initialize(&lcd, PG_BACKEND_GPIO);
+    PG_lcd_initialize(&lcd, PG_BACKEND_GLFW);
     lcd.pin_rs = 24;
     lcd.pin_e = 26;
     lcd.pin_d0 = 3;

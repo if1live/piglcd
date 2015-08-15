@@ -20,6 +20,8 @@ typedef enum {
 } PG_backend_t;
 
 struct PG_lcd_t {
+    PG_backend_t backend;
+    
     uint8_t rows;
     uint8_t columns;
     uint8_t pages;
@@ -48,6 +50,7 @@ struct PG_lcd_t {
     void (*pin_set_val)(struct PG_lcd_t *lcd, uint8_t pin, int val);
     void (*pulse)(struct PG_lcd_t *lcd);
     int (*setup)(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
+    int (*frame_end_callback)(struct PG_lcd_t *lcd);
 };
 
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type);
