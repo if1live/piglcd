@@ -572,7 +572,7 @@ void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page)
 
 void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val)
 {
-    val = val & 0b1;
+    val = val & ((1 << DATA_BITS_SET_DISPLAY_ENABLE) - 1);
     PG_lcd_pin_on(lcd, lcd->pin_cs1);
     PG_lcd_pin_on(lcd, lcd->pin_cs2);
 
@@ -590,7 +590,7 @@ void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val)
 
 void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx)
 {
-    idx = idx & 0b111111;
+    idx = idx & ((1 << DATA_BITS_SET_START_LINE) - 1);
 
     PG_lcd_pin_on(lcd, lcd->pin_cs1);
     PG_lcd_pin_on(lcd, lcd->pin_cs2);
@@ -605,7 +605,7 @@ void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx)
 
 void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column)
 {
-    column = column & 0b111111;
+    column = column & ((1 << DATA_BITS_SET_COLUMN) - 1);
 
     PG_lcd_select_chip(lcd, chip);
 
