@@ -2,6 +2,7 @@
 #define __PG_lcd_H__
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define PG_DEFAULT_ROWS 64
 #define PG_DEFAULT_COLUMNS 128
@@ -55,6 +56,7 @@ struct PG_lcd_t {
     void (*pulse)(struct PG_lcd_t *lcd);
     int (*setup)(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
     int (*frame_end_callback)(struct PG_lcd_t *lcd);
+    bool (*is_alive)(struct PG_lcd_t *lcd);
 };
 
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type);

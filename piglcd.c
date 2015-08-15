@@ -55,18 +55,21 @@ static void PG_lcd_gpio_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_gpio_pulse(struct PG_lcd_t *lcd);
 static int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 static int PG_lcd_gpio_frame_end_callback(struct PG_lcd_t *lcd);
+static bool PG_lcd_gpio_is_alive(struct PG_lcd_t *lcd);
 
 // dummy backend
 static void PG_lcd_dummy_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_dummy_pulse(struct PG_lcd_t *lcd);
 static int PG_lcd_dummy_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 static int PG_lcd_dummy_frame_end_callback(struct PG_lcd_t *lcd);
+static bool PG_lcd_dummy_is_alive(struct PG_lcd_t *lcd);
 
 // glfw backend
 static void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd);
 static int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 static int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd);
+static bool PG_lcd_glfw_is_alive(struct PG_lcd_t *lcd);
 
 // common function
 void PG_lcd_pin_on(struct PG_lcd_t *lcd, uint8_t pin);
@@ -141,6 +144,11 @@ int PG_lcd_gpio_frame_end_callback(struct PG_lcd_t *lcd)
     UNUSED(lcd);
     return 0;
 }
+bool PG_lcd_gpio_is_alive(struct PG_lcd_t *lcd)
+{
+    UNUSED(lcd);
+    return true;
+}
 
 // dummy backend
 void PG_lcd_dummy_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
@@ -163,6 +171,11 @@ int PG_lcd_dummy_frame_end_callback(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
     return 0;
+}
+bool PG_lcd_dummy_is_alive(struct PG_lcd_t *lcd)
+{
+    UNUSED(lcd);
+    return true;
 }
 
 
@@ -422,9 +435,20 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
 
     glfwSwapBuffers(glfw_window);
     glfwPollEvents();
+
     usleep(10 * 1000);
     return 0;
 }
+bool PG_lcd_glfw_is_alive(struct PG_lcd_t *lcd)
+{
+    UNUSED(lcd);
+    if(glfwWindowShouldClose(glfw_window)) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
 
 static void PG_lcd_nanosleep(int nsec)
 {
@@ -477,18 +501,21 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
             lcd->pulse = PG_lcd_gpio_pulse;
             lcd->setup = PG_lcd_gpio_setup;
             lcd->frame_end_callback = PG_lcd_gpio_frame_end_callback;
+            lcd->is_alive = PG_lcd_gpio_is_alive;
             break;
         case PG_BACKEND_GLFW:
             lcd->pin_set_val = PG_lcd_glfw_pin_set_val;
             lcd->pulse = PG_lcd_glfw_pulse;
             lcd->setup = PG_lcd_glfw_setup;
             lcd->frame_end_callback = PG_lcd_glfw_frame_end_callback;
+            lcd->is_alive = PG_lcd_glfw_is_alive;
             break;
         case PG_BACKEND_DUMMY:
             lcd->pin_set_val = PG_lcd_dummy_pin_set_val;
             lcd->pulse = PG_lcd_dummy_pulse;
             lcd->setup = PG_lcd_dummy_setup;
             lcd->frame_end_callback = PG_lcd_dummy_frame_end_callback;
+            lcd->is_alive = PG_lcd_dummy_is_alive;
             break;
         default:
             assert(!"invalid backend type");

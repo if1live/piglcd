@@ -31,6 +31,10 @@ int main()
     for(int i = 0 ; i < 50 ; ++i) {
         PG_lcd_write_test_pattern(&lcd);
         PG_lcd_clear_screen(&lcd);
+
+        if(!lcd.is_alive(&lcd)) {
+            break;
+        }
     }
 
     PG_lcd_destroy(&lcd);
