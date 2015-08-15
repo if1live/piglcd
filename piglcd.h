@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+// for timespec
+#include <time.h>
 
 #define PG_DEFAULT_ROWS 64
 #define PG_DEFAULT_COLUMNS 128
@@ -57,6 +59,28 @@ struct PG_lcd_t {
     int (*setup)(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
     int (*frame_end_callback)(struct PG_lcd_t *lcd);
     bool (*is_alive)(struct PG_lcd_t *lcd);
+    
+    // for glfw backend
+    struct GLFWwindow *glfw_window;
+
+    uint8_t glfw_val_rs;
+    uint8_t glfw_val_e;
+    uint8_t glfw_val_data_bits;
+    uint8_t glfw_val_cs1;
+    uint8_t glfw_val_cs2;
+    uint8_t glfw_val_rst;
+    uint8_t glfw_val_led;
+    
+    uint8_t glfw_state_display_enable;
+    uint8_t glfw_state_page;
+    uint8_t glfw_state_column;
+    uint8_t glfw_state_chip;
+    uint8_t glfw_state_start_line;
+    
+    uint8_t glfw_state_grid[PG_DEFAULT_CHIPS][PG_DEFAULT_PAGES][PG_DEFAULT_COLUMNS/2];
+    
+    // common
+    struct timespec render_begin_tspec;
 };
 
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type);
