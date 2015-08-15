@@ -28,12 +28,13 @@ int main()
 
     lcd.setup(&lcd, PG_PINMAP_PHYS);
     
+    struct PG_framebuffer_t buffer;
     for(int i = 0 ; i < 50 ; ++i) {
-        PG_lcd_write_buffer_sample_pattern(&lcd);
-        PG_lcd_commit_buffer(&lcd);
+        PG_framebuffer_write_sample_pattern(&buffer);
+        PG_lcd_render_buffer(&lcd, &buffer);
         
-        PG_lcd_clear_buffer(&lcd);
-        PG_lcd_commit_buffer(&lcd);
+        PG_framebuffer_clear(&buffer);
+        PG_lcd_render_buffer(&lcd, &buffer);
 
         if(!lcd.is_alive(&lcd)) {
             break;
