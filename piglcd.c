@@ -745,14 +745,9 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
         }
     }
 
-    int latest_chip = -1;
     for(int diff_idx = 0 ; diff_idx < diff_list_idx ; ++diff_idx) {
         int chip = diff_list[diff_idx] / lcd->pages;
         int page = diff_list[diff_idx] % lcd->pages;
-
-        if(latest_chip != chip) {
-            PG_lcd_select_chip(lcd, chip);
-        }
 
         PG_lcd_set_page(lcd, chip, page);
         PG_lcd_set_column(lcd, chip, 0);
@@ -770,18 +765,15 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
                 latest_column = column;
             }
 
+            PG_lcd_select_chip(lcd, chip);
             PG_lcd_pin_on(lcd, lcd->pin_rs);
 
             PG_lcd_write_data_bit(lcd, next_data);
             lcd->pulse(lcd);
 
+            PG_lcd_unselect_chip(lcd);
             PG_lcd_pin_off(lcd, lcd->pin_rs);
         }
-
-        if(latest_chip != chip) {
-            PG_lcd_unselect_chip(lcd);
-        }
-        latest_chip = chip;
     }
     memcpy(&lcd->buffer, buffer, sizeof(struct PG_framebuffer_t));
 
