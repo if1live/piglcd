@@ -1,5 +1,5 @@
 CC	= clang
-CFLAGS	= -Iexternal/glfw/include -W -Wall -Wunused
+CFLAGS	= -Iexternal/glfw/include -W
 #LDFLAGS	= -lwiringPi
 LDFLAGS	= \
 	-lglfw3 -Lexternal/glfw/src	\

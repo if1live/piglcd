@@ -12,10 +12,18 @@ typedef enum {
     PG_PINMAP_MAX_COUNT
 } PG_pinmap_t;
 
+typedef enum {
+    PG_BACKEND_GPIO,
+    PG_BACKEND_GLFW,
+    PG_BACKEND_DUMMY,
+    PG_BACKEND_MAX_COUNT,
+} PG_backend_t;
+
 struct PG_lcd_t {
     uint8_t rows;
     uint8_t columns;
     uint8_t pages;
+    uint8_t chips;
     
     // pin number
     uint8_t pin_rs;
@@ -35,31 +43,19 @@ struct PG_lcd_t {
     
     // data
     uint8_t *buffer;
+    
+    // backend function
+    void (*pin_set_val)(struct PG_lcd_t *lcd, uint8_t pin, int val);
+    void (*pulse)(struct PG_lcd_t *lcd);
+    void (*reset)(struct PG_lcd_t *lcd);
+    int (*setup)(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 };
 
-void PG_lcd_initialize(struct PG_lcd_t *lcd);
+void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type);
 void PG_lcd_destroy(struct PG_lcd_t *lcd);
 
-void PG_lcd_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
-void PG_lcd_pin_on(struct PG_lcd_t *lcd, uint8_t pin);
-void PG_lcd_pin_off(struct PG_lcd_t *lcd, uint8_t pin);
-void PG_lcd_pulse(struct PG_lcd_t *lcd);
-void PG_lcd_reset(struct PG_lcd_t *lcd);
-
-int PG_lcd_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
-void PG_lcd_pin_all_low(struct PG_lcd_t *lcd);
-
-void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page);
-void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column);
-void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val);
-void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx);
-
-void PG_lcd_select_chip(struct PG_lcd_t *lcd, int chip);
-void PG_lcd_unselect_chip(struct PG_lcd_t *lcd);
-void PG_lcd_write_data_bit(struct PG_lcd_t *lcd, uint8_t data);
-
 void PG_lcd_clear_screen(struct PG_lcd_t *lcd);
-
+void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd);
 
 // helper
 #define UNUSED(x) (void)(x)
