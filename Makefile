@@ -1,16 +1,12 @@
 CC	= clang
 CFLAGS	= -Iexternal/glfw/include -W
 
+LIBS	:= $(shell PKG_CONFIG_PATH=external/glfw/src pkg-config --libs --static glfw3)
+LDFLAGS	= -lglfw3 -Lexternal/glfw/src $(LIBS)
+
 UNAME	:= $(shell uname)
 ifeq ($(UNAME), Linux)
-LIBS	:= $(shell PKG_CONFIG_PATH=external/glfw/src pkg-config --libs --static glfw3)
-LDFLAGS	= -lwiringPi -lglfw3 -Lexternal/glfw/src $(LIBS)
-else
-LDFLAGS = \
-	-framework OpenGL	\
-	-framework Cocoa	\
-	-framework CoreVideo	\
-	-framework IOKit
+LDFLAGS	+= -lwiringPi
 endif
 
 OBJS	= piglcd.o main.o
