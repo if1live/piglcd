@@ -5,11 +5,7 @@
 int main()
 {
     struct PG_lcd_t lcd;
-#ifdef __arm__
     PG_lcd_initialize(&lcd, PG_BACKEND_GPIO);
-#else
-    PG_lcd_initialize(&lcd, PG_BACKEND_DUMMY);
-#endif
     lcd.pin_rs = 24;
     lcd.pin_e = 26;
     lcd.pin_d0 = 3;

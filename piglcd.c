@@ -7,6 +7,14 @@
 
 #ifdef __arm__
 #include <wiringPi.h>
+#else
+const int OUTPUT = 0;
+int wiringPiSetup() { return 0; }
+int wiringPiSetupGpio() { return 0; }
+int wiringPiSetupPhys() { return 0; }
+int wiringPiSetupSys() { return 0; }
+void digitalWrite(int pin, int val) { UNUSED(pin); UNUSED(val); }
+void pinMode(int pin, int mode) { UNUSED(pin); UNUSED(mode); }
 #endif
 
 #define PIN_COUNT 14
@@ -15,24 +23,19 @@ static void PG_lcd_nanosleep(int nsec);
 static void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table);
 
 // gpio backend
-#ifdef __arm__
 static void PG_lcd_gpio_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_gpio_pulse(struct PG_lcd_t *lcd);
-static void PG_lcd_gpio_reset(struct PG_lcd_t *lcd);
 static int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
-#endif
 
 // dummy backend
 static void PG_lcd_dummy_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_dummy_pulse(struct PG_lcd_t *lcd);
-static void PG_lcd_dummy_reset(struct PG_lcd_t *lcd);
 static int PG_lcd_dummy_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 
 // glfw backend
 #ifndef __arm__
 static void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val);
 static void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd);
-static void PG_lcd_glfw_reset(struct PG_lcd_t *lcd);
 static int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 #endif
 
@@ -40,6 +43,7 @@ static int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 void PG_lcd_pin_on(struct PG_lcd_t *lcd, uint8_t pin);
 void PG_lcd_pin_off(struct PG_lcd_t *lcd, uint8_t pin);
 void PG_lcd_pin_all_low(struct PG_lcd_t *lcd);
+void PG_lcd_reset(struct PG_lcd_t *lcd);
 
 void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page);
 void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column);
@@ -51,7 +55,6 @@ void PG_lcd_unselect_chip(struct PG_lcd_t *lcd);
 void PG_lcd_write_data_bit(struct PG_lcd_t *lcd, uint8_t data);
 
 // gpio backend
-#ifdef __arm__
 void PG_lcd_gpio_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
 {
     UNUSED(lcd);
@@ -63,12 +66,6 @@ void PG_lcd_gpio_pulse(struct PG_lcd_t *lcd)
     // sleep short time
     PG_lcd_nanosleep(1);
     PG_lcd_pin_off(lcd, lcd->pin_e);
-}
-void PG_lcd_gpio_reset(struct PG_lcd_t *lcd)
-{
-    PG_lcd_pin_off(lcd, lcd->pin_rst);
-    PG_lcd_nanosleep(1);
-    PG_lcd_pin_on(lcd, lcd->pin_rst);
 }
 int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
@@ -109,7 +106,6 @@ int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
     
     return 0;
 }
-#endif
 
 
 // dummy backend
@@ -123,10 +119,6 @@ void PG_lcd_dummy_pulse(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
 }
-void PG_lcd_dummy_reset(struct PG_lcd_t *lcd)
-{
-    UNUSED(lcd);
-}
 int PG_lcd_dummy_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
     UNUSED(lcd);
@@ -136,7 +128,6 @@ int PG_lcd_dummy_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 
 
 // glfw backend
-#ifndef __arm__
 void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
 {
     UNUSED(lcd);
@@ -147,17 +138,12 @@ void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
 }
-void PG_lcd_glfw_reset(struct PG_lcd_t *lcd)
-{
-    UNUSED(lcd);
-}
 int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
     UNUSED(lcd);
     UNUSED(pinmap_type);
     return 0;
 }
-#endif
 
 
 static void PG_lcd_nanosleep(int nsec)
@@ -188,6 +174,12 @@ void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table)
     *(pin_table + i++) = lcd->pin_led;
 }
 
+void PG_lcd_reset(struct PG_lcd_t *lcd)
+{
+    PG_lcd_pin_off(lcd, lcd->pin_rst);
+    PG_lcd_pin_on(lcd, lcd->pin_rst);
+}
+
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
 {
     memset(lcd, 0, sizeof(*lcd));
@@ -199,26 +191,19 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
     
     // for backend
     switch(backend_type) {
-#ifdef __arm__
         case PG_BACKEND_GPIO:
             lcd->pin_set_val = PG_lcd_gpio_pin_set_val;
             lcd->pulse = PG_lcd_gpio_pulse;
-            lcd->reset = PG_lcd_gpio_reset;
             lcd->setup = PG_lcd_gpio_setup;
             break;
-#endif
-#ifndef __arm__
         case PG_BACKEND_GLFW:
             lcd->pin_set_val = PG_lcd_glfw_pin_set_val;
             lcd->pulse = PG_lcd_glfw_pulse;
-            lcd->reset = PG_lcd_glfw_reset;
             lcd->setup = PG_lcd_glfw_setup;
             break;
-#endif
         case PG_BACKEND_DUMMY:
             lcd->pin_set_val = PG_lcd_dummy_pin_set_val;
             lcd->pulse = PG_lcd_dummy_pulse;
-            lcd->reset = PG_lcd_dummy_reset;
             lcd->setup = PG_lcd_dummy_setup;
             break;
         default:

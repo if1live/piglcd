@@ -47,7 +47,6 @@ struct PG_lcd_t {
     // backend function
     void (*pin_set_val)(struct PG_lcd_t *lcd, uint8_t pin, int val);
     void (*pulse)(struct PG_lcd_t *lcd);
-    void (*reset)(struct PG_lcd_t *lcd);
     int (*setup)(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type);
 };
 
