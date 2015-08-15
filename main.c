@@ -6,8 +6,11 @@
 int main()
 {
     struct PG_lcd_t lcd;
-    //PG_lcd_initialize(&lcd, PG_BACKEND_GPIO);
+#ifdef __arm__
+    PG_lcd_initialize(&lcd, PG_BACKEND_GPIO);
+#else
     PG_lcd_initialize(&lcd, PG_BACKEND_GLFW);
+#endif
     lcd.pin_rs = 24;
     lcd.pin_e = 26;
     lcd.pin_d0 = 3;
@@ -29,8 +32,8 @@ int main()
         PG_lcd_write_test_pattern(&lcd);
         PG_lcd_clear_screen(&lcd);
     }
-    
+
     PG_lcd_destroy(&lcd);
-    
+
     return 0;
 }

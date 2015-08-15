@@ -13,9 +13,9 @@
 #include <wiringPi.h>
 #else
 const int OUTPUT = 0;
-static int wiringPiSetupMock() 
+static int wiringPiSetupMock()
 {
-    fprintf(stderr, "WiringPi not exist, use Mock.\n"); 
+    fprintf(stderr, "WiringPi not exist, use Mock.\n");
     return 0;
 }
 static int wiringPiSetup() { return wiringPiSetupMock(); }
@@ -97,11 +97,11 @@ int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
         default:
             return -1;
     }
-    
+
     if(success == -1) {
         return 1;
     }
-    
+
     uint8_t pin_array[PIN_COUNT];
     PG_lcd_fill_all_pin(lcd, pin_array);
     for(int i = 0 ; i < PIN_COUNT ; ++i) {
@@ -111,10 +111,10 @@ int PG_lcd_gpio_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 
     PG_lcd_pin_all_low(lcd);
     PG_lcd_reset(lcd);
-    
+
     PG_lcd_set_display_enable(lcd, 1);
     PG_lcd_set_start_line(lcd, 0);
-    
+
     return 0;
 }
 int PG_lcd_gpio_frame_end_callback(struct PG_lcd_t *lcd)
@@ -163,26 +163,27 @@ int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
     UNUSED(lcd);
     UNUSED(pinmap_type);
-    
+
     // create glfw window
     if(!glfwInit()) {
+        fprintf(stderr, "Cannot use glfw backend\n");
         exit(EXIT_FAILURE);
     }
-    
+
     g_window = glfwCreateWindow(640, 480, "GLFW Backend", NULL, NULL);
     if(!g_window) {
         glfwTerminate();
     }
-    
+
     glfwMakeContextCurrent(g_window);
     glfwSwapInterval(1);
-    
+
     return 0;
 }
 int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
-    
+
     float ratio;
     int width, height;
 
@@ -223,7 +224,7 @@ static void PG_lcd_nanosleep(int nsec)
     nanosleep(&dt, &rmtp);
 }
 
-void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table) 
+void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table)
 {
     int i = 0 ;
     *(pin_table + i++) = lcd->pin_rs;
@@ -257,7 +258,7 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
     lcd->columns = 128;
     lcd->pages = lcd->rows / 8;
     lcd->chips = 2;
-    
+
     // for backend
     switch(backend_type) {
         case PG_BACKEND_GPIO:
@@ -282,7 +283,7 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
             assert(!"invalid backend type");
             break;
     }
-    
+
     lcd->buffer = (uint8_t*)malloc(sizeof(uint8_t) * lcd->columns * lcd->pages);
 }
 
@@ -451,7 +452,7 @@ void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
             for(int column = 0 ; column < 64 ; ++column) {
                 PG_lcd_pin_on(lcd, lcd->pin_rs);
                 PG_lcd_select_chip(lcd, chip);
-        
+
                 if(column % 2 == 0) {
                     char data = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 6);
                     PG_lcd_write_data_bit(lcd, data);
@@ -460,7 +461,7 @@ void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
                     PG_lcd_write_data_bit(lcd, data);
                 }
                 lcd->pulse(lcd);
-        
+
                 PG_lcd_unselect_chip(lcd);
                 PG_lcd_pin_off(lcd, lcd->pin_rs);
             }
