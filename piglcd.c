@@ -705,8 +705,8 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
 {
     PG_lcd_render_begin(lcd);
 
-    for(int chip = 0 ; chip < lcd->chips ; ++chip) {
-        for(int page = 0 ; page < lcd->pages ; ++page) {
+    for(int page = 0 ; page < lcd->pages ; ++page) {
+        for(int chip = 0 ; chip < lcd->chips ; ++chip) {
             PG_lcd_set_page(lcd, chip, page);
             PG_lcd_set_column(lcd, chip, 0);
             for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
@@ -741,8 +741,9 @@ void PG_framebuffer_clear(struct PG_framebuffer_t *buffer)
 void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
 {
     int chip_columns = PG_COLUMNS / PG_CHIPS;
-    for(int chip = 0 ; chip < PG_CHIPS ; ++chip) {
-        for(int page = 0 ; page < PG_PAGES ; ++page) {
+
+    for(int page = 0 ; page < PG_PAGES ; ++page) {
+        for(int chip = 0 ; chip < PG_CHIPS ; ++chip) {
             for(int column = 0 ; column < chip_columns ; ++column) {
                 uint8_t data = (column % 2) ? 0b10101010 : 0b01010101;
                 buffer->data[chip][page][column] = data;
