@@ -46,6 +46,23 @@ static void pinMode(int pin, int mode) { UNUSED(pin); UNUSED(mode); }
 #define MASK_SET_COLUMN 0b01000000
 #define DATA_BITS_SET_COLUMN 6
 
+// http://stackoverflow.com/questions/5167269/clock-gettime-alternative-in-mac-os-x
+#ifdef __MACH__
+#include <sys/time.h>
+#define CLOCK_MONOTONIC 0
+//clock_gettime is not implemented on OSX
+int clock_gettime(int clk_id, struct timespec* t) {
+    UNUSED(clk_id);
+    struct timeval now;
+    int rv = gettimeofday(&now, NULL);
+    if (rv) return rv;
+    t->tv_sec  = now.tv_sec;
+    t->tv_nsec = now.tv_usec * 1000;
+    return 0;
+}
+#endif
+
+
 
 static void PG_lcd_nanosleep(int nsec);
 static void PG_lcd_fill_all_pin(struct PG_lcd_t *lcd, uint8_t *pin_table);
@@ -436,7 +453,6 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
     glfwSwapBuffers(glfw_window);
     glfwPollEvents();
 
-    usleep(10 * 1000);
     return 0;
 }
 bool PG_lcd_glfw_is_alive(struct PG_lcd_t *lcd)
@@ -658,8 +674,48 @@ void PG_lcd_write_data_bit(struct PG_lcd_t *lcd, uint8_t data)
     }
 }
 
+// 최대 60 fps로 제한하는 목적
+// TODO move to private header?
+static struct timespec g_lcd_render_begin_tspec;
+
+struct timespec timespec_subtract(struct timespec *a, struct timespec *b)
+{
+    struct timespec diff;
+    diff.tv_sec = a->tv_sec - b->tv_sec;
+    diff.tv_nsec = a->tv_nsec - b->tv_nsec;
+    if(diff.tv_nsec < 0) {
+        diff.tv_sec -= 1;
+        diff.tv_nsec += 1000 * 1000 * 1000;
+    }
+    assert(diff.tv_sec >= 0);
+    assert(diff.tv_nsec >= 0);
+    return diff;
+}
+
+void PG_lcd_render_begin(struct PG_lcd_t *lcd)
+{
+    clock_gettime(CLOCK_MONOTONIC, &g_lcd_render_begin_tspec);
+}
+void PG_lcd_render_end(struct PG_lcd_t *lcd)
+{
+    struct timespec lcd_render_end_tspec;
+    clock_gettime(CLOCK_MONOTONIC, &lcd_render_end_tspec);
+
+    struct timespec diff = timespec_subtract(&lcd_render_end_tspec, &g_lcd_render_begin_tspec);
+    int milli = (diff.tv_sec * 1000) + (diff.tv_nsec / 1000 / 1000);
+
+    const int MAX_FPS = 60;
+    int target_milli = (int)(1000.0 / MAX_FPS);
+    if(milli > target_milli) {
+        PG_lcd_nanosleep(1);
+    } else {
+        usleep((target_milli - milli) * 1000);
+    }
+}
+
 void PG_lcd_clear_screen(struct PG_lcd_t *lcd)
 {
+    PG_lcd_render_begin(lcd);
     for(int page = 0 ; page < lcd->pages ; ++page) {
         for(int chip = 0 ; chip < lcd->chips ; ++chip) {
             PG_lcd_set_page(lcd, chip, page);
@@ -677,10 +733,12 @@ void PG_lcd_clear_screen(struct PG_lcd_t *lcd)
         }
     }
     lcd->frame_end_callback(lcd);
+    PG_lcd_render_end(lcd);
 }
 
 void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
 {
+    PG_lcd_render_begin(lcd);
     for(int page = 0 ; page < lcd->pages ; ++page) {
         for(int chip = 0 ; chip < lcd->chips ; ++chip) {
             PG_lcd_set_page(lcd, chip, page);
@@ -704,4 +762,5 @@ void PG_lcd_write_test_pattern(struct PG_lcd_t *lcd)
         }
     }
     lcd->frame_end_callback(lcd);
+    PG_lcd_render_end(lcd);
 }
