@@ -158,16 +158,16 @@ void fps_counter_update(struct fps_counter_t *counter)
     if(counter->sampling_idx < FPS_SAMPLING_SIZE) {
         return;
     }
-    
+
     struct timespec end_tspec;
     clock_gettime(CLOCK_MONOTONIC, &end_tspec);
-    
+
     struct timespec diff = PG_timespec_subtract(&end_tspec, &counter->begin_tspec);
     float sec = ((diff.tv_sec) + (diff.tv_nsec / 1000000000.0)) / FPS_SAMPLING_SIZE;
     float fps = 1.0 / sec;
     printf("Avg FPS = %f, Avg delta = %f sec\n", fps, sec);
     fflush(stdout);
-    
+
     memcpy(&counter->begin_tspec, &end_tspec, sizeof(end_tspec));
     counter->sampling_idx = 0;
 }
@@ -287,7 +287,7 @@ void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
             return;
         }
     }
-    
+
     // data bits는 별도 처리
     uint8_t data_pin_list[DATA_PIN_COUNT];
     PG_lcd_fill_data_pin(lcd, data_pin_list);
@@ -306,7 +306,7 @@ void PG_lcd_glfw_pin_set_val(struct PG_lcd_t *lcd, uint8_t pin, int val)
 void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
 {
     UNUSED(lcd);
-    
+
     /*
     printf("RS  = %d\n", glfw_val_rs);
     printf("E   = %d\n", glfw_val_e);
@@ -323,7 +323,7 @@ void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
     printf("RST = %d\n", glfw_val_rst);
     printf("LED = %d\n", glfw_val_led);
     */
-    
+
     uint8_t data_bits = lcd->glfw_val_data_bits;
 
     if(lcd->glfw_val_cs1 == 1) {
@@ -333,7 +333,7 @@ void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
         lcd->glfw_state_chip = 1;
     }
     //printf("curr chip : %d\n", glfw_state_chip);
-    
+
     if(lcd->glfw_val_rs == 0) {
         int shift = 0;
         // display on/off
@@ -342,33 +342,33 @@ void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
             lcd->glfw_state_display_enable = ((1 << shift) - 1) & data_bits;
             //printf("display on/off : %d\n", glfw_state_display_enable);
         }
-        
+
         // set column
         shift = DATA_BITS_SET_COLUMN;
         if((data_bits >> shift) == (MASK_SET_COLUMN >> shift)) {
             lcd->glfw_state_column = ((1 << shift) - 1) & data_bits;
             //printf("set column : %d\n", glfw_state_column);
         }
-        
+
         // set page
         shift = DATA_BITS_SET_PAGE;
         if((data_bits >> shift) == (MASK_SET_PAGE >> shift)) {
             lcd->glfw_state_page = ((1 << shift) - 1) & data_bits;
             //printf("set page : %d\n", glfw_state_page);
         }
-        
+
         // set display start line
         shift = DATA_BITS_SET_START_LINE;
         if((data_bits >> shift) == (MASK_SET_START_LINE >> shift)) {
             lcd->glfw_state_start_line = ((1 << shift) - 1) & data_bits;
             //printf("set start line : %d\n", glfw_state_start_line);
         }
-        
+
     } else {
         // write display data
         //printf("write data\n");
         lcd->glfw_framebuffer.data[lcd->glfw_state_chip][lcd->glfw_state_page][lcd->glfw_state_column] = data_bits;
-        
+
         int chip_columns = (lcd->columns / lcd->chips);
         lcd->glfw_state_column = (lcd->glfw_state_column + 1) % chip_columns;
     }
@@ -395,7 +395,7 @@ int PG_lcd_glfw_window_height(struct PG_lcd_t *lcd)
 int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 {
     UNUSED(pinmap_type);
-    
+
     PG_lcd_pin_all_low(lcd);
     PG_lcd_reset(lcd);
 
@@ -410,7 +410,7 @@ int PG_lcd_glfw_setup(struct PG_lcd_t *lcd, PG_pinmap_t pinmap_type)
 
     int width = PG_lcd_glfw_window_width(lcd);
     int height = PG_lcd_glfw_window_height(lcd);
-    
+
     lcd->glfw_window = glfwCreateWindow(width, height, "GLFW Backend", NULL, NULL);
     if(!lcd->glfw_window) {
         glfwTerminate();
@@ -430,7 +430,7 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
 
     glViewport(0, 0, width, height);
     glClear(GL_COLOR_BUFFER_BIT);
-    
+
     if(!lcd->glfw_state_display_enable) {
         return 0;
     }
@@ -439,14 +439,14 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
     glLoadIdentity();
     // gl 좌표계 뒤집기. 격자 그릴때는 y가 반대인게 편하다
     glOrtho(0, width, height, 0, 1.f, -1.f);
-    
+
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
     glColor3f(1.f, 1.f, 1.f);
-    
+
     glBegin(GL_TRIANGLES);
-    
+
     int chip_columns = (lcd->columns / lcd->chips);
     for(int chip = 0 ; chip < lcd->chips ; ++chip) {
         for(int page = 0 ; page < lcd->pages ; ++page) {
@@ -460,16 +460,16 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
                     }
                     int x = chip * chip_columns + column;
                     int y = page * 8 + i;
-                    
+
                     int l = GLFW_LCD_BASE_X + x * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING);
                     int t = GLFW_LCD_BASE_Y + y * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING);
                     int r = l + GLFW_LCD_PIXEL_SIZE;
                     int b = t + GLFW_LCD_PIXEL_SIZE;
-                    
+
                     glVertex3f(l, b, 0);
                     glVertex3f(r, b, 0);
                     glVertex3f(r, t, 0);
-                    
+
                     glVertex3f(l, b, 0);
                     glVertex3f(r, t, 0);
                     glVertex3f(l, t, 0);
@@ -477,7 +477,7 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
             }
         }
     }
-    
+
     glEnd();
 
     glfwSwapBuffers(lcd->glfw_window);
@@ -570,7 +570,7 @@ void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type)
             assert(!"invalid backend type");
             break;
     }
-    
+
     fps_counter_initialize(&g_fps_counter);
 }
 
@@ -719,27 +719,23 @@ void PG_lcd_commit_buffer(struct PG_lcd_t *lcd)
 {
     PG_lcd_render_begin(lcd);
     for(int chip = 0 ; chip < lcd->chips ; ++chip) {
+        PG_lcd_select_chip(lcd, chip);
+
         for(int page = 0 ; page < lcd->pages ; ++page) {
-            PG_lcd_select_chip(lcd, chip);
             PG_lcd_set_page(lcd, page);
-            PG_lcd_unselect_chip(lcd);
-            
-            PG_lcd_select_chip(lcd, chip);
             PG_lcd_set_column(lcd, 0);
-            PG_lcd_unselect_chip(lcd);
-            
+
             for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
                 PG_lcd_pin_on(lcd, lcd->pin_rs);
-                PG_lcd_select_chip(lcd, chip);
 
                 uint8_t data = lcd->buffer.data[chip][page][column];
                 PG_lcd_write_data_bit(lcd, data);
                 lcd->pulse(lcd);
 
-                PG_lcd_unselect_chip(lcd);
                 PG_lcd_pin_off(lcd, lcd->pin_rs);
             }
         }
+        PG_lcd_unselect_chip(lcd);
     }
     lcd->frame_end_callback(lcd);
     PG_lcd_render_end(lcd);
@@ -771,17 +767,17 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
         }
     }
 
+    int latest_chip = -1;
     for(int diff_idx = 0 ; diff_idx < diff_list_idx ; ++diff_idx) {
         int chip = diff_list[diff_idx] / lcd->pages;
         int page = diff_list[diff_idx] % lcd->pages;
 
-        PG_lcd_select_chip(lcd, chip);
+        if(latest_chip != chip) {
+            PG_lcd_select_chip(lcd, chip);
+        }
+
         PG_lcd_set_page(lcd, page);
-        PG_lcd_unselect_chip(lcd);
-        
-        PG_lcd_select_chip(lcd, chip);
         PG_lcd_set_column(lcd, 0);
-        PG_lcd_unselect_chip(lcd);
 
         int latest_column = -1;
         for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
@@ -792,21 +788,21 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
             }
 
             if(latest_column + 1 != column) {
-                PG_lcd_select_chip(lcd, chip);
                 PG_lcd_set_column(lcd, column);
-                PG_lcd_unselect_chip(lcd);
-                
                 latest_column = column;
             }
 
-            PG_lcd_select_chip(lcd, chip);
             PG_lcd_pin_on(lcd, lcd->pin_rs);
 
             PG_lcd_write_data_bit(lcd, next_data);
             lcd->pulse(lcd);
 
-            PG_lcd_unselect_chip(lcd);
             PG_lcd_pin_off(lcd, lcd->pin_rs);
+        }
+
+        if(latest_chip != chip) {
+            PG_lcd_unselect_chip(lcd);
+            latest_chip = chip;
         }
     }
     memcpy(&lcd->buffer, buffer, sizeof(struct PG_framebuffer_t));
