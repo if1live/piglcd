@@ -99,8 +99,8 @@ void PG_lcd_pin_off(struct PG_lcd_t *lcd, uint8_t pin);
 void PG_lcd_pin_all_low(struct PG_lcd_t *lcd);
 void PG_lcd_reset(struct PG_lcd_t *lcd);
 
-void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page);
-void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column);
+void PG_lcd_set_page(struct PG_lcd_t *lcd, int page);
+void PG_lcd_set_column(struct PG_lcd_t *lcd, int column);
 void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val);
 void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx);
 
@@ -547,17 +547,11 @@ void PG_lcd_pin_off(struct PG_lcd_t *lcd, uint8_t pin)
     lcd->pin_set_val(lcd, pin, 0);
 }
 
-void PG_lcd_set_page(struct PG_lcd_t *lcd, int chip, int page)
+void PG_lcd_set_page(struct PG_lcd_t *lcd, int page)
 {
-    page = page & (lcd->pages - 1);
-    PG_lcd_select_chip(lcd, chip);
-
     uint8_t data = MASK_SET_PAGE | page;
     PG_lcd_write_data_bit(lcd, data);
     lcd->pulse(lcd);
-
-    PG_lcd_pin_off(lcd, lcd->pin_cs1);
-    PG_lcd_pin_off(lcd, lcd->pin_cs2);
 }
 
 void PG_lcd_set_display_enable(struct PG_lcd_t *lcd, int val)
@@ -593,18 +587,14 @@ void PG_lcd_set_start_line(struct PG_lcd_t *lcd, int idx)
     PG_lcd_unselect_chip(lcd);
 }
 
-void PG_lcd_set_column(struct PG_lcd_t *lcd, int chip, int column)
+void PG_lcd_set_column(struct PG_lcd_t *lcd, int column)
 {
     column = column & ((1 << DATA_BITS_SET_COLUMN) - 1);
-
-    PG_lcd_select_chip(lcd, chip);
 
     // 0 1 ? ? ? ? ? ?
     uint8_t data = MASK_SET_COLUMN | column;
     PG_lcd_write_data_bit(lcd, data);
     lcd->pulse(lcd);
-
-    PG_lcd_unselect_chip(lcd);
 }
 
 void PG_lcd_select_chip(struct PG_lcd_t *lcd, int chip)
@@ -700,8 +690,14 @@ void PG_lcd_commit_buffer(struct PG_lcd_t *lcd)
     PG_lcd_render_begin(lcd);
     for(int chip = 0 ; chip < lcd->chips ; ++chip) {
         for(int page = 0 ; page < lcd->pages ; ++page) {
-            PG_lcd_set_page(lcd, chip, page);
-            PG_lcd_set_column(lcd, chip, 0);
+            PG_lcd_select_chip(lcd, chip);
+            PG_lcd_set_page(lcd, page);
+            PG_lcd_unselect_chip(lcd);
+            
+            PG_lcd_select_chip(lcd, chip);
+            PG_lcd_set_column(lcd, 0);
+            PG_lcd_unselect_chip(lcd);
+            
             for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
                 PG_lcd_pin_on(lcd, lcd->pin_rs);
                 PG_lcd_select_chip(lcd, chip);
@@ -749,8 +745,13 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
         int chip = diff_list[diff_idx] / lcd->pages;
         int page = diff_list[diff_idx] % lcd->pages;
 
-        PG_lcd_set_page(lcd, chip, page);
-        PG_lcd_set_column(lcd, chip, 0);
+        PG_lcd_select_chip(lcd, chip);
+        PG_lcd_set_page(lcd, page);
+        PG_lcd_unselect_chip(lcd);
+        
+        PG_lcd_select_chip(lcd, chip);
+        PG_lcd_set_column(lcd, 0);
+        PG_lcd_unselect_chip(lcd);
 
         int latest_column = -1;
         for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
@@ -761,7 +762,10 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
             }
 
             if(latest_column + 1 != column) {
-                PG_lcd_set_column(lcd, chip, column);
+                PG_lcd_select_chip(lcd, chip);
+                PG_lcd_set_column(lcd, column);
+                PG_lcd_unselect_chip(lcd);
+                
                 latest_column = column;
             }
 
