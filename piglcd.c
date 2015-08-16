@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#include "font5x8.h"
 
 // for glfw backend
 #include <GLFW/glfw3.h>
@@ -751,19 +752,20 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
 
     int chip_columns = lcd->columns / lcd->chips;
     int diff_list_idx = 0;
-    for(int page = 0 ; page < lcd->pages ; ++page) {
-        for(int column = 0 ; column < lcd->columns ; ++column) {
-            int idx = PG_BUFFER_INDEX(page, column);
-            uint8_t prev_data = lcd->buffer.data[idx];
-            uint8_t next_data = buffer->data[idx];
-            if(prev_data == next_data) {
-                continue;
+    for(int chip = 0 ; chip < lcd->chips ; ++chip) {
+        for(int page = 0 ; page < lcd->pages ; ++page) {
+            for(int column = 0 ; column < chip_columns ; ++column) {
+                int idx = PG_BUFFER_INDEX(page, chip * chip_columns + column);
+                uint8_t prev_data = lcd->buffer.data[idx];
+                uint8_t next_data = buffer->data[idx];
+                if(prev_data == next_data) {
+                    continue;
+                }
+                
+                diff_list[diff_list_idx] = chip * lcd->pages + page;
+                diff_list_idx++;
+                break;
             }
-            
-            int chip = column / chip_columns;
-            diff_list[diff_list_idx] = chip * lcd->pages + page;
-            diff_list_idx++;
-            break;
         }
     }
 
@@ -812,6 +814,7 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
     PG_lcd_render_end(lcd);
 }
 
+// framebuffer impl
 void PG_framebuffer_clear(struct PG_framebuffer_t *buffer)
 {
     memset(buffer, 0, sizeof(*buffer));
@@ -823,6 +826,25 @@ void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
         for(int column = 0 ; column < PG_COLUMNS ; ++column) {
             uint8_t data = (column % 2) ? 0b10101010 : 0b01010101;
             buffer->data[PG_BUFFER_INDEX(page, column)] = data;
+        }
+    }
+}
+
+void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
+{
+    PG_framebuffer_clear(buffer);
+    
+    const int FONT_WIDTH = 5;
+    const int FONT_RENDER_WIDTH = FONT_WIDTH + 1;
+    const int CHARACTER_COUNT = sizeof(font5x8) / (sizeof(font5x8[0]) * FONT_WIDTH);
+    const int COUNT_CHARACTER_IN_ROW = PG_COLUMNS / FONT_RENDER_WIDTH;
+    
+    for(int character = 0 ; character < CHARACTER_COUNT ; ++character) {
+        int page = character / COUNT_CHARACTER_IN_ROW;
+        int character_idx = character % COUNT_CHARACTER_IN_ROW;
+        for(int i = 0 ; i < FONT_WIDTH ; ++i) {
+            char ch = font5x8[character * FONT_WIDTH + i];
+            buffer->data[PG_BUFFER_INDEX(page, i + character_idx * FONT_RENDER_WIDTH)] = ch;
         }
     }
 }

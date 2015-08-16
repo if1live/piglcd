@@ -43,6 +43,7 @@ int main()
         }
     }
     */
+    /*
     int running = 1;
     for(int page = 0 ; page < PG_PAGES * 100 && running ; ++page) {
         for(int column = 0 ; column < PG_COLUMNS && running ; ++column) {
@@ -55,6 +56,14 @@ int main()
                 break;
             }
         }
+    }
+    */
+    for(;;) {
+        PG_framebuffer_write_test(&buffer);
+        PG_lcd_render_buffer(&lcd, &buffer);
+        //memcpy(&lcd.buffer, &buffer, sizeof(buffer));
+        //PG_lcd_commit_buffer(&lcd);
+        if(!lcd.is_alive(&lcd)) break;
     }
 
     PG_lcd_destroy(&lcd);

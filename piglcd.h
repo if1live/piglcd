@@ -32,6 +32,7 @@ struct PG_framebuffer_t {
 };
 void PG_framebuffer_clear(struct PG_framebuffer_t *buffer);
 void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer);
+void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer);
 
 
 struct PG_lcd_t {
