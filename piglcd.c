@@ -725,8 +725,8 @@ void PG_lcd_render_end(struct PG_lcd_t *lcd)
     int target_milli = (int)(1000.0 / MAX_FPS);
     if(milli < target_milli) {
 #ifdef __arm__
-        //int sleep_milli = target_milli - milli - 1;
-        //usleep(sleep_milli * 1000);
+        int sleep_milli = target_milli - milli - 1;
+        usleep(sleep_milli * 1000);
 #else
         usleep(1);
 #endif
