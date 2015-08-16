@@ -367,9 +367,10 @@ void PG_lcd_glfw_pulse(struct PG_lcd_t *lcd)
     } else {
         // write display data
         //printf("write data\n");
-        lcd->glfw_framebuffer.data[lcd->glfw_state_chip][lcd->glfw_state_page][lcd->glfw_state_column] = data_bits;
-
         int chip_columns = (lcd->columns / lcd->chips);
+        int column = (lcd->glfw_state_chip * chip_columns) + lcd->glfw_state_column;
+        int idx = PG_BUFFER_INDEX(lcd->glfw_state_page, column);
+        lcd->glfw_framebuffer.data[idx] = data_bits;
         lcd->glfw_state_column = (lcd->glfw_state_column + 1) % chip_columns;
     }
 }
@@ -447,33 +448,30 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
 
     glBegin(GL_TRIANGLES);
 
-    int chip_columns = (lcd->columns / lcd->chips);
-    for(int chip = 0 ; chip < lcd->chips ; ++chip) {
-        for(int page = 0 ; page < lcd->pages ; ++page) {
-            for(int column = 0 ; column < chip_columns ; ++column) {
-                uint8_t data = lcd->glfw_framebuffer.data[chip][page][column];
-                for(int i = 0 ; i < 8 ; ++i) {
-                    uint8_t mask = (1 << i);
-                    int val = data & mask;
-                    if(!val) {
-                        continue;
-                    }
-                    int x = chip * chip_columns + column;
-                    int y = page * 8 + i;
-
-                    int l = GLFW_LCD_BASE_X + x * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING);
-                    int t = GLFW_LCD_BASE_Y + y * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING);
-                    int r = l + GLFW_LCD_PIXEL_SIZE;
-                    int b = t + GLFW_LCD_PIXEL_SIZE;
-
-                    glVertex3f(l, b, 0);
-                    glVertex3f(r, b, 0);
-                    glVertex3f(r, t, 0);
-
-                    glVertex3f(l, b, 0);
-                    glVertex3f(r, t, 0);
-                    glVertex3f(l, t, 0);
+    for(int page = 0 ; page < lcd->pages ; ++page) {
+        for(int column = 0 ; column < lcd->columns ; ++column) {
+            uint8_t data = lcd->glfw_framebuffer.data[PG_BUFFER_INDEX(page, column)];
+            for(int i = 0 ; i < 8 ; ++i) {
+                uint8_t mask = (1 << i);
+                int val = data & mask;
+                if(!val) {
+                    continue;
                 }
+                int x = column;
+                int y = page * 8 + i;
+
+                int l = GLFW_LCD_BASE_X + x * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING);
+                int t = GLFW_LCD_BASE_Y + y * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING);
+                int r = l + GLFW_LCD_PIXEL_SIZE;
+                int b = t + GLFW_LCD_PIXEL_SIZE;
+
+                glVertex3f(l, b, 0);
+                glVertex3f(r, b, 0);
+                glVertex3f(r, t, 0);
+
+                glVertex3f(l, b, 0);
+                glVertex3f(r, t, 0);
+                glVertex3f(l, t, 0);
             }
         }
     }
@@ -725,10 +723,11 @@ void PG_lcd_commit_buffer(struct PG_lcd_t *lcd)
             PG_lcd_set_page(lcd, page);
             PG_lcd_set_column(lcd, 0);
 
-            for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
+            const int chip_columns = PG_COLUMNS / PG_CHIPS;
+            for(int column = 0 ; column < chip_columns ; ++column) {
                 PG_lcd_pin_on(lcd, lcd->pin_rs);
 
-                uint8_t data = lcd->buffer.data[chip][page][column];
+                uint8_t data = lcd->buffer.data[PG_BUFFER_INDEX(page, chip * chip_columns + column)];
                 PG_lcd_write_data_bit(lcd, data);
                 lcd->pulse(lcd);
 
@@ -750,20 +749,21 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
     int diff_list[lcd->pages * lcd->chips];
     memset(diff_list, -1, sizeof(diff_list));
 
-    int chip_column = lcd->columns / lcd->chips;
+    int chip_columns = lcd->columns / lcd->chips;
     int diff_list_idx = 0;
-    for(int chip = 0 ; chip < lcd->chips ; ++chip) {
-        for(int page = 0 ; page < lcd->pages ; ++page) {
-            for(int column = 0 ; column < chip_column ; ++column) {
-                uint8_t prev_data = lcd->buffer.data[chip][page][column];
-                uint8_t next_data = buffer->data[chip][page][column];
-                if(prev_data == next_data) {
-                    continue;
-                }
-                diff_list[diff_list_idx] = chip * lcd->pages + page;
-                diff_list_idx++;
-                break;
+    for(int page = 0 ; page < lcd->pages ; ++page) {
+        for(int column = 0 ; column < lcd->columns ; ++column) {
+            int idx = PG_BUFFER_INDEX(page, column);
+            uint8_t prev_data = lcd->buffer.data[idx];
+            uint8_t next_data = buffer->data[idx];
+            if(prev_data == next_data) {
+                continue;
             }
+            
+            int chip = column / chip_columns;
+            diff_list[diff_list_idx] = chip * lcd->pages + page;
+            diff_list_idx++;
+            break;
         }
     }
 
@@ -780,9 +780,10 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
         PG_lcd_set_column(lcd, 0);
 
         int latest_column = -1;
-        for(int column = 0 ; column < (lcd->columns / lcd->chips) ; ++column) {
-            uint8_t prev_data = lcd->buffer.data[chip][page][column];
-            uint8_t next_data = buffer->data[chip][page][column];
+        for(int column = 0 ; column < chip_columns ; ++column) {
+            int idx = PG_BUFFER_INDEX(page, chip * chip_columns + column);
+            uint8_t prev_data = lcd->buffer.data[idx];
+            uint8_t next_data = buffer->data[idx];
             if(prev_data == next_data) {
                 continue;
             }
@@ -818,14 +819,10 @@ void PG_framebuffer_clear(struct PG_framebuffer_t *buffer)
 
 void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
 {
-    int chip_columns = PG_COLUMNS / PG_CHIPS;
-
     for(int page = 0 ; page < PG_PAGES ; ++page) {
-        for(int chip = 0 ; chip < PG_CHIPS ; ++chip) {
-            for(int column = 0 ; column < chip_columns ; ++column) {
-                uint8_t data = (column % 2) ? 0b10101010 : 0b01010101;
-                buffer->data[chip][page][column] = data;
-            }
+        for(int column = 0 ; column < PG_COLUMNS ; ++column) {
+            uint8_t data = (column % 2) ? 0b10101010 : 0b01010101;
+            buffer->data[PG_BUFFER_INDEX(page, column)] = data;
         }
     }
 }

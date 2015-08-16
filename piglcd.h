@@ -10,6 +10,7 @@
 #define PG_COLUMNS 128
 #define PG_PAGES (PG_ROWS / 8)
 #define PG_CHIPS 2
+#define PG_CHIP_COLUMNS (PG_COLUMNS / PG_CHIPS)
 
 typedef enum {
     PG_PINMAP_NORMAL,
@@ -27,7 +28,7 @@ typedef enum {
 } PG_backend_t;
 
 struct PG_framebuffer_t {
-    uint8_t data[PG_CHIPS][PG_PAGES][PG_COLUMNS/PG_CHIPS];
+    uint8_t data[PG_PAGES * PG_COLUMNS];
 };
 void PG_framebuffer_clear(struct PG_framebuffer_t *buffer);
 void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer);
@@ -98,5 +99,6 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
 
 // helper
 #define UNUSED(x) (void)(x)
+#define PG_BUFFER_INDEX(page, column) (page * PG_COLUMNS + column)
 
 #endif  // __PG_lcd_H__
