@@ -37,7 +37,6 @@ function install_bootstrap()
     mkdir -p external
     rm -rf external/*
     install_glfw
-    download_lodepng
 }
 
 

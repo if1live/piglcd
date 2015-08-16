@@ -12,6 +12,7 @@
 #define PG_CHIPS 2
 #define PG_CHIP_COLUMNS (PG_COLUMNS / PG_CHIPS)
 
+typedef uint8_t* PG_image_t;
 typedef enum {
     PG_PINMAP_NORMAL,
     PG_PINMAP_GPIO,
@@ -29,10 +30,22 @@ typedef enum {
 
 struct PG_framebuffer_t {
     uint8_t data[PG_PAGES * PG_COLUMNS];
+    
+    int width;
+    int height;
+    int curr_x;
+    int curr_y;
 };
 void PG_framebuffer_clear(struct PG_framebuffer_t *buffer);
 void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer);
 void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer);
+
+void PG_framebuffer_draw_bitmap(struct PG_framebuffer_t *buffer, PG_image_t data);
+void PG_framebuffer_cursor_to_xy(struct PG_framebuffer_t *buffer, int x, int y);
+void PG_framebuffer_print_string(struct PG_framebuffer_t *buffer, const char *str);
+
+
+void PG_framebuffer_overlay_assign(struct PG_framebuffer_t *dst, struct PG_framebuffer_t *src, int x, int y);
 
 
 struct PG_lcd_t {

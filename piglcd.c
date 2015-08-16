@@ -4,8 +4,9 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
-#include "lodepng.h"
 #include "font5x8.h"
+
+#include "ArduinoIcon64x64.h"
 
 // for glfw backend
 #include <GLFW/glfw3.h>
@@ -35,7 +36,7 @@ static void pinMode(int pin, int mode) { UNUSED(pin); UNUSED(mode); }
 // LCD size
 #define GLFW_LCD_BASE_X 0
 #define GLFW_LCD_BASE_Y 0
-#define GLFW_LCD_PADDING 2
+#define GLFW_LCD_PADDING 3
 #define GLFW_LCD_PIXEL_SIZE 6
 
 // 1 0 1 1 1 ? ? ?
@@ -449,7 +450,6 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
     glColor3f(1.f, 1.f, 1.f);
 
     glBegin(GL_TRIANGLES);
-
     for(int page = 0 ; page < lcd->pages ; ++page) {
         for(int column = 0 ; column < lcd->columns ; ++column) {
             uint8_t data = lcd->glfw_framebuffer.data[PG_BUFFER_INDEX(page, column)];
@@ -477,7 +477,28 @@ int PG_lcd_glfw_frame_end_callback(struct PG_lcd_t *lcd)
             }
         }
     }
-
+    glEnd();
+    
+    // grid for debugging
+    glBegin(GL_LINES);
+    for(int column = 0 ; column < PG_COLUMNS - 1 ; ++column) {
+        if(column % 8 != 0) {
+            continue;
+        }
+        int x = (column * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING)) + GLFW_LCD_BASE_X - (GLFW_LCD_PADDING-1) / 2;
+        glVertex3f(x, 0, 0);
+        glVertex3f(x, height, 0);
+    }
+    
+    // row line
+    for(int row = 0 ; row < PG_ROWS - 1 ; ++row) {
+        if(row % 8 != 0) {
+            continue;
+        }
+        int y = (row * (GLFW_LCD_PIXEL_SIZE + GLFW_LCD_PADDING)) + GLFW_LCD_BASE_Y - (GLFW_LCD_PADDING-1) / 2;
+        glVertex3f(0, y, 0);
+        glVertex3f(width, y, 0);
+    }
     glEnd();
 
     glfwSwapBuffers(lcd->glfw_window);
@@ -812,6 +833,10 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
 void PG_framebuffer_clear(struct PG_framebuffer_t *buffer)
 {
     memset(buffer, 0, sizeof(*buffer));
+    buffer->width = PG_COLUMNS;
+    buffer->height = PG_PAGES;
+    buffer->curr_x = 0;
+    buffer->curr_y = 0;
 }
 
 void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
@@ -824,15 +849,133 @@ void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
     }
 }
 
-// sample image
-static const char *IMAGE_FILENAME = "sora_kasugano__yosuga_no_sora__lineart_by_themenda1-d7c5o5h.png";
-static unsigned char *img_image = NULL;
-static unsigned img_width = 0;
-static unsigned img_height = 0;
+void PG_framebuffer_draw_bitmap(struct PG_framebuffer_t *buffer, PG_image_t data)
+{
+    int width = data[0];
+    int height = data[1];
+    buffer->width = width;
+    buffer->height = height;
+    for(int page = 0 ; page < (height / 8) ; ++page) {
+        for(int column = 0 ; column < width ; ++column) {
+            uint8_t elem = data[page * width + column + 2];
+            buffer->data[PG_BUFFER_INDEX(page, column)] = elem;
+        }
+    }
+}
+void PG_framebuffer_cursor_to_xy(struct PG_framebuffer_t *buffer, int x, int y)
+{
+    buffer->curr_x = x;
+    buffer->curr_y = y;
+}
+void PG_framebuffer_overlay_assign(struct PG_framebuffer_t *dst, struct PG_framebuffer_t *src, int x, int y)
+{
+    for(int src_page = 0 ; src_page < (src->height / 8 ) ; ++src_page) {
+        for(int src_x = 0 ; src_x < src->width ; ++src_x) {
+            int src_idx = PG_BUFFER_INDEX(src_page, src_x);
+            uint8_t src_elem = src->data[src_idx];
+            
+            int dst_x = src_x + x;
+            if(dst_x >= PG_COLUMNS) { break; }
+            
+            if(y % 8 == 0) {
+                // 페이지 단위에 맞게 떨어지면 처리가 단순하다
+                int dst_page = src_page + (y / 8);
+                if(dst_page >= PG_PAGES) { break; }
+                int dst_idx = PG_BUFFER_INDEX(dst_page, dst_x);
+                dst->data[dst_idx] = src_elem;
+                
+            } else {
+                int dst_upper_page = src_page + (y / 8);
+                int dst_lower_page = dst_upper_page + 1;
+                
+                int lower_bits = y % 8;
+                int upper_bits = 8 - lower_bits;
+                
+                uint8_t upper_elem = src_elem << lower_bits;
+                uint8_t lower_elem = src_elem >> upper_bits;
+                
+                // render upper
+                if(dst_upper_page < PG_PAGES) {
+                    int upper_idx = PG_BUFFER_INDEX(dst_upper_page, dst_x);
+                    uint8_t prev_elem = dst->data[upper_idx];
+                    uint8_t next_elem = prev_elem | upper_elem;
+                    dst->data[upper_idx] = next_elem;
+                }
+                
+                // render lower
+                if(dst_lower_page < PG_PAGES) {
+                    int lower_idx = PG_BUFFER_INDEX(dst_lower_page, dst_x);
+                    uint8_t prev_elem = dst->data[lower_idx];
+                    uint8_t next_elem = prev_elem | lower_elem;
+                    dst->data[lower_idx] = next_elem;
+                } 
+            }
+        }
+    }
+}
+
+void PG_framebuffer_print_string(struct PG_framebuffer_t *buffer, const char *str)
+{
+    const char *font_data = font5x8;
+    
+    const int FONT_MARGIN = 1;
+    const int FONT_WIDTH = 5;
+    const int FONT_RENDER_WIDTH = FONT_WIDTH + FONT_MARGIN;
+    const int FONT_OFFSET = 0x20;
+    
+    int length = strlen(str);
+    int cursor_x = buffer->curr_x;
+    int cursor_y = buffer->curr_y;
+    
+    for(int character_idx = 0 ; character_idx < length ; ++character_idx) {
+        char character = str[character_idx] - FONT_OFFSET;
         
+        if(cursor_y % 8 == 0) {
+            int page = cursor_y / 8;
+            for(int i = 0 ; i < FONT_WIDTH ; ++i) {
+                uint8_t line = font_data[character * FONT_WIDTH + i];
+                buffer->data[PG_BUFFER_INDEX(page, cursor_x)] = line;
+                cursor_x++;
+            }
+            cursor_x += FONT_MARGIN;
+            
+        } else {
+            int upper_page = cursor_y / 8;
+            int lower_page = upper_page + 1;
+            
+            int lower_bits = cursor_y % 8;
+            int upper_bits = 8 - lower_bits;
+
+            for(int i = 0 ; i < FONT_WIDTH ; ++i) {
+                uint8_t line = font_data[character * FONT_WIDTH + i];
+                uint8_t upper_elem = line << lower_bits;
+                uint8_t lower_elem = line >> upper_bits;
+            
+                buffer->data[PG_BUFFER_INDEX(upper_page, cursor_x)] |= upper_elem;
+                buffer->data[PG_BUFFER_INDEX(lower_page, cursor_x)] |= lower_elem;
+                cursor_x++;
+            }
+            cursor_x += FONT_MARGIN;
+        }
+    }
+    
+    buffer->curr_x = cursor_x;
+    buffer->curr_y = cursor_y;
+}
+
 void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
 {
     PG_framebuffer_clear(buffer);
+    
+    struct PG_framebuffer_t icon;
+    PG_framebuffer_draw_bitmap(&icon, ArduinoIcon64x64);
+    PG_framebuffer_overlay_assign(buffer, &icon, 32, 0);
+    
+    PG_framebuffer_cursor_to_xy(buffer, 0, 0);
+    PG_framebuffer_print_string(buffer, "Hello");
+    PG_framebuffer_cursor_to_xy(buffer, 4, 7);
+    PG_framebuffer_print_string(buffer, "World");
+    
     /*
     const int FONT_WIDTH = 5;
     const int FONT_RENDER_WIDTH = FONT_WIDTH + 1;
@@ -862,18 +1005,12 @@ void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
     int jongsung = tmp % HANGUL_JUNGSUNG;
     */
     
-    
+    /*
     static bool first_run = false;
     if(!first_run) {
         first_run = true;
         int error = lodepng_decode32_file(&img_image, &img_width, &img_height, IMAGE_FILENAME);
         if(error) printf("error %u: %s\n", error, lodepng_error_text(error));
-        
-        /*use image here*/
-        printf("%d %d\n", img_width, img_height);
-        
-        
-        
         //free(image);
     }
     
@@ -888,15 +1025,15 @@ void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
             bool render = false;
             if(a == 255) {
                 render = true;
-            } else if(a > 196 && frame % 2 == 0) {
+            } else if(a > 196 && frame % 20 > 0) {
                 render = true;
-            } else if(a > 128 && frame % 4 == 0) {
+            } else if(a > 128 && frame % 8 > 0) {
                 render = true;
-            } else if(a > 64 && frame % 6 == 0) {
+            } else if(a > 64 && frame % 6 > 0) {
                 render = true;
-            } else if(a > 32 && frame % 8 == 0) {
+            } else if(a > 32 && frame % 4 > 0) {
                 render = true;
-            } else if(a > 0 && frame % 10 == 0) {
+            } else if(a > 0 && frame % 2 > 0) {
                 render = true;
             }
             if(render) {
@@ -915,4 +1052,5 @@ void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
         }
     }
     frame++;
+    */
 }
