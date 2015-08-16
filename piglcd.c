@@ -761,7 +761,7 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
                 if(prev_data == next_data) {
                     continue;
                 }
-                
+
                 diff_list[diff_list_idx] = chip * lcd->pages + page;
                 diff_list_idx++;
                 break;
@@ -774,10 +774,7 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
         int chip = diff_list[diff_idx] / lcd->pages;
         int page = diff_list[diff_idx] % lcd->pages;
 
-        if(latest_chip != chip) {
-            PG_lcd_select_chip(lcd, chip);
-        }
-
+        PG_lcd_select_chip(lcd, chip);
         PG_lcd_set_page(lcd, page);
         PG_lcd_set_column(lcd, 0);
 
@@ -802,11 +799,7 @@ void PG_lcd_render_buffer(struct PG_lcd_t *lcd, struct PG_framebuffer_t *buffer)
 
             PG_lcd_pin_off(lcd, lcd->pin_rs);
         }
-
-        if(latest_chip != chip) {
-            PG_lcd_unselect_chip(lcd);
-            latest_chip = chip;
-        }
+        PG_lcd_unselect_chip(lcd);
     }
     memcpy(&lcd->buffer, buffer, sizeof(struct PG_framebuffer_t));
 
@@ -833,12 +826,12 @@ void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
 void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
 {
     PG_framebuffer_clear(buffer);
-    
+
     const int FONT_WIDTH = 5;
     const int FONT_RENDER_WIDTH = FONT_WIDTH + 1;
     const int CHARACTER_COUNT = sizeof(font5x8) / (sizeof(font5x8[0]) * FONT_WIDTH);
     const int COUNT_CHARACTER_IN_ROW = PG_COLUMNS / FONT_RENDER_WIDTH;
-    
+
     for(int character = 0 ; character < CHARACTER_COUNT ; ++character) {
         int page = character / COUNT_CHARACTER_IN_ROW;
         int character_idx = character % COUNT_CHARACTER_IN_ROW;

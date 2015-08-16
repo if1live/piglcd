@@ -28,13 +28,13 @@ int main()
 
     lcd.setup(&lcd, PG_PINMAP_PHYS);
     PG_lcd_commit_buffer(&lcd);
-    
+
     struct PG_framebuffer_t buffer;
     /*
     for(int i = 0 ; i < 50 ; ++i) {
         PG_framebuffer_write_sample_pattern(&buffer);
         PG_lcd_render_buffer(&lcd, &buffer);
-        
+
         PG_framebuffer_clear(&buffer);
         PG_lcd_render_buffer(&lcd, &buffer);
 
@@ -50,7 +50,7 @@ int main()
             PG_framebuffer_clear(&buffer);
             buffer.data[PG_BUFFER_INDEX(page, column)] = 0b10101010;
             PG_lcd_render_buffer(&lcd, &buffer);
-            
+
             if(!lcd.is_alive(&lcd)) {
                 running = 0;
                 break;
