@@ -9,17 +9,20 @@ ifeq ($(UNAME), Linux)
 LDFLAGS	+= -lwiringPi
 endif
 
-OBJS	= piglcd.o main.o
+OBJS	= piglcd.o main.o lodepng.c
 TARGET	= a.out
 
-all: main.o piglcd.o
-	$(CC) main.o piglcd.o -o $(TARGET) $(LDFLAGS)
+all: main.o piglcd.o lodepng.o
+	$(CC) main.o piglcd.o lodepng.o -o $(TARGET) $(LDFLAGS)
 
 main.o: main.c
 	$(CC) main.c -c $(CFLAGS)
 
 piglcd.o: piglcd.c
 	$(CC) piglcd.c -c $(CFLAGS)
+
+lodepng.o: lodepng.c
+	$(CC) lodepng.c -c $(CFLAGS)
 
 clean:
 	rm -rf *.o

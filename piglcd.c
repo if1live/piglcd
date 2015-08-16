@@ -4,6 +4,7 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#include "lodepng.h"
 #include "font5x8.h"
 
 // for glfw backend
@@ -703,8 +704,8 @@ void PG_lcd_render_end(struct PG_lcd_t *lcd)
     int target_milli = (int)(1000.0 / MAX_FPS);
     if(milli < target_milli) {
 #ifdef __arm__
-        int sleep_milli = target_milli - milli - 1;
-        usleep(sleep_milli * 1000);
+        //int sleep_milli = target_milli - milli - 1;
+        //usleep(sleep_milli * 1000);
 #else
         usleep(1);
 #endif
@@ -823,10 +824,16 @@ void PG_framebuffer_write_sample_pattern(struct PG_framebuffer_t *buffer)
     }
 }
 
+// sample image
+static const char *IMAGE_FILENAME = "sora_kasugano__yosuga_no_sora__lineart_by_themenda1-d7c5o5h.png";
+static unsigned char *img_image = NULL;
+static unsigned img_width = 0;
+static unsigned img_height = 0;
+        
 void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
 {
     PG_framebuffer_clear(buffer);
-
+    /*
     const int FONT_WIDTH = 5;
     const int FONT_RENDER_WIDTH = FONT_WIDTH + 1;
     const int CHARACTER_COUNT = sizeof(font5x8) / (sizeof(font5x8[0]) * FONT_WIDTH);
@@ -840,4 +847,72 @@ void PG_framebuffer_write_test(struct PG_framebuffer_t *buffer)
             buffer->data[PG_BUFFER_INDEX(page, i + character_idx * FONT_RENDER_WIDTH)] = ch;
         }
     }
+    */
+    
+    /*
+    int code = 45244;
+    const int HANGUL_BASE_CODE = 44032;
+    const int HANGUL_CHOSUNG = 588;
+    const int HANGUL_JUNGSUNG = 28;
+    
+    int tmp = code - HANGUL_BASE_CODE;
+    int chosung = tmp / HANGUL_CHOSUNG;
+    tmp -= chosung * HANGUL_CHOSUNG;
+    int jungsang = tmp / HANGUL_JUNGSUNG;
+    int jongsung = tmp % HANGUL_JUNGSUNG;
+    */
+    
+    
+    static bool first_run = false;
+    if(!first_run) {
+        first_run = true;
+        int error = lodepng_decode32_file(&img_image, &img_width, &img_height, IMAGE_FILENAME);
+        if(error) printf("error %u: %s\n", error, lodepng_error_text(error));
+        
+        /*use image here*/
+        printf("%d %d\n", img_width, img_height);
+        
+        
+        
+        //free(image);
+    }
+    
+    static int frame = 0;
+    for(unsigned y = 0 ; y < img_height ; ++y) {
+        for(unsigned x = 0 ; x < img_width ; ++x) {
+            unsigned char r = img_image[4 * (x + y * img_width) + 0];
+            unsigned char g = img_image[4 * (x + y * img_width) + 1];
+            unsigned char b = img_image[4 * (x + y * img_width) + 2];
+            unsigned char a = img_image[4 * (x + y * img_width) + 3];
+            
+            bool render = false;
+            if(a == 255) {
+                render = true;
+            } else if(a > 196 && frame % 2 == 0) {
+                render = true;
+            } else if(a > 128 && frame % 4 == 0) {
+                render = true;
+            } else if(a > 64 && frame % 6 == 0) {
+                render = true;
+            } else if(a > 32 && frame % 8 == 0) {
+                render = true;
+            } else if(a > 0 && frame % 10 == 0) {
+                render = true;
+            }
+            if(render) {
+                int page = y / 8;
+                int column = x;
+                int page_inner_y = y % 8;
+                
+                if(page >= PG_PAGES) break;
+                if(column >= PG_COLUMNS) break;
+                
+                //uint8_t mask = (1 << (8 - page_inner_y - 1));
+                uint8_t mask = (1 << page_inner_y);
+                int idx = PG_BUFFER_INDEX(page, column);
+                buffer->data[idx] |= mask;
+            }
+        }
+    }
+    frame++;
 }
