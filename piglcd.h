@@ -88,8 +88,6 @@ struct PG_lcd_t {
     
     // common
     struct timespec render_begin_tspec;
-    struct timespec fps_begin_tspec;
-    int fps_sampling_idx;
 };
 
 void PG_lcd_initialize(struct PG_lcd_t *lcd, PG_backend_t backend_type);
